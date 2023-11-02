@@ -1,8 +1,7 @@
 {
-  "name": "Nuki OTP integration",
+  "name": "Nuki OTP Generator",
   "domains": ["nuki_otp"],
-  "documentation": "https://github.com/pickeld/nuki-otp-integration/blob/master/custom_components/nuki_otp_integration/",
+  "documentation": "https://github.com/pickeld/nuki-otp/",
   "issue_tracker": "https://github.com/pickeld/nuki-otp-integration/issues",
-  "version": "0.1.0",
-  "content_in_root": true
+  "version": "0.1.0"
 }
