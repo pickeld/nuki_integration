@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import callback
@@ -14,9 +15,10 @@ NO_CODE = "------"
 
 
 class NukiOTPSensor(SensorEntity):
-    def __init__(self):
+    def __init__(self, otp_lifetime_hours):
         self._state = NO_CODE
         self._unique_id = "nuki_otp_code"
+        self.otp_lifetime_hours = otp_lifetime_hours
 
     @property
     def device_info(self):
@@ -26,6 +28,26 @@ class NukiOTPSensor(SensorEntity):
             "model": "OTP Generator",
             "sw_version": "1.0"
         }
+
+    def get_expiry(self, creation_date, offset):
+        creation_date = creation_date.replace('Z', '+00:00')
+        utc_time = datetime.fromisoformat(creation_date)
+        expiry_time = utc_time + timedelta(hours=offset)
+        return expiry_time.isoformat()
+
+    @property
+    def extra_state_attributes(self):
+        if self._state and isinstance(self._state, dict):
+            return {"Code": str(self._state.get('code')),
+                    "Name": self._state.get('name'),
+                    "Enabled": self._state.get('enabled'),
+                    "Remote Allowed": self._state.get('remoteAllowed'),
+                    "Lock Count": self._state.get('lockCount'),
+                    "Creation Date": self._state.get('creationDate'),
+                    "Expiry Date": self.get_expiry(creation_date=self._state.get('creationDate'),
+                                                   offset=self.otp_lifetime_hours)
+                    }
+        return {}
 
     @property
     def unique_id(self):
@@ -45,6 +67,7 @@ class NukiOTPSensor(SensorEntity):
     async def async_update(self):
         """Update the sensor state."""
         await house_keeper()
+        _ = self.device_state_attributes
         auths: list[dict] = await get_auth()
         self._state = auths[0] if len(auths) else None
 
@@ -75,5 +98,5 @@ async def async_setup_entry(hass, entry, add_entities):
     nuki_name = data["nuki_name"]
     otp_lifetime_hours = int(data["otp_lifetime_hours"])
     initialize(api_token, api_url, otp_username, nuki_name, otp_lifetime_hours)
-    add_entities([NukiOTPSensor()])
+    add_entities([NukiOTPSensor(otp_lifetime_hours=otp_lifetime_hours)])
     return True
