@@ -1,11 +1,13 @@
 {
   "domain": "nuki_otp",
   "name": "Nuki OTP integration",
-  "documentation": "https://github.com/pickeld/nuki-otp-integration/tree/master/custom_components/nuki_otp_integration",
+  "documentation": "https://github.com/pickeld/nuki-otp",
+  "issue_tracker": "https://github.com/pickeld/nuki/issues",
   "requirements": ["requests"],
   "dependencies": [],
   "codeowners": ["@pickeld"],
   "homeassistant": "0.110.0",
-  "version": "0.0.1",
+  "version": "1.0.0",
+  "iot_class": "cloud_polling",
   "config_flow": true
 }
