@@ -1,0 +1,13 @@
+{
+    "config": {
+        "title": "Nuki OTP Setup",
+        "step": {
+            "user": {
+                "title": "Connect to Nuki OTP"
+            }
+        },
+        "abort": {
+            "single_instance_allowed": "Only a single configuration of Nuki OTP is allowed."
+        }
+    }
+}
