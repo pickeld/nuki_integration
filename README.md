@@ -1,7 +1,7 @@
-<table>
+<table style="border:none;">
 <tr>
-<td><img src="custom_components/nuki_otp/icon.png" width="50" height="50" border=2></td>
-<td><h1>Nuki OTP Integration for Home Assistant</h1></td>
+<td style="border:none;"><img src="custom_components/nuki_otp/icon.png" width="50" height="50"></td>
+<td style="border:none;"><h1>Nuki OTP Integration for Home Assistant</h1></td>
 </tr>
 </table>
 
