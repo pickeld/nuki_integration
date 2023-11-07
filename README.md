@@ -1,6 +1,9 @@
-
-| <img src="custom_components/nuki_otp/icon.png" width="50" height="50" boarder=0> | # Nuki OTP Integration for Home Assistant |
-|:--------------------------------------------------------------------------------:| :--------------------------------------- |
+<table>
+<tr>
+<td><img src="custom_components/nuki_otp/icon.png" width="50" height="50" border=2></td>
+<td><h1>Nuki OTP Integration for Home Assistant</h1></td>
+</tr>
+</table>
 
 This custom integration for Home Assistant allows users to generate and manage One-Time Passwords (OTPs) for Nuki Smart Locks directly from Home Assistant.
 
