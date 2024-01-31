@@ -67,7 +67,7 @@ class NukiOTPSensor(SensorEntity):
     async def async_update(self):
         """Update the sensor state."""
         await house_keeper()
-        _ = self.device_state_attributes
+        _ = self.extra_state_attributes
         auths: list[dict] = await get_auth()
         self._state = auths[0] if len(auths) else None
 
