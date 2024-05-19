@@ -1,0 +1,28 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Setup Nuki OTP",
+        "description": "Please enter your Nuki OTP configurations:",
+        "data": {
+          "api_token": "API Token",
+          "api_url": "API URL",
+          "otp_username": "OTP Username",
+          "nuki_name": "Nuki Name",
+          "otp_lifetime_hours": "OTP Lifetime (Hours)"
+        }
+      }
+    },
+    "error": {
+      "invalid_api_token": "API token missing",
+      "invalid_otp_username": "OTP username missing",
+      "invalid_nuki_name": "Nuki name missing",
+      "invalid_api_url": "API URL missing",
+      "invalid_otp_lifetime_hours": "OTP lifetime missing"
+    },
+    "create_entry": {
+      "default": "Setup Nuki OTP",
+      "title": "Nuki OTP"
+    }
+  }
+}
