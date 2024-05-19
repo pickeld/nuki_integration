@@ -5,7 +5,7 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import callback
 from homeassistant.helpers.event import async_call_later
 
-from .helpers import get_auth, house_keeper, initialize
+# from .helpers import get_auth, house_keeper, initialize
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ DOMAIN = "nuki_otp"
 NO_CODE = "------"
 
 
-class NukiOTPSensor(SensorEntity):
+class GLiNETSensor(SensorEntity):
     def __init__(self, otp_lifetime_hours):
         self._state = NO_CODE
         self._unique_id = "nuki_otp_code"
