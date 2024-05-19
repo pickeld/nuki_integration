@@ -16,7 +16,7 @@ class GLiNetConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required('router_url', default='http://192.168.8.1'): vol.All(str, vol.Length(min=1)),
                     vol.Required('router_username', default='root'): vol.All(str, vol.Length(min=1)),
                     vol.Required('router_password'): vol.All(str, vol.Length(min=1)),
-                    vol.Required('router_name', default='Mudi'): vol.All(str, vol.Length(min=1)),
+                    vol.Required('router_name'): vol.All(str, vol.Length(min=1)),
                 })
             )
         await self.async_set_unique_id(f"{DOMAIN}_unique")

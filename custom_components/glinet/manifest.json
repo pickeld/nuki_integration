@@ -1,8 +1,8 @@
 {
   "domain": "glinet",
   "name": "GL.iNet Router",
-  "documentation": "https://github.com/pickeld/hass_addons/glinet_mudi",
-  "issue_tracker": "https://github.com/pickeld/hass_addons/glinet_mudi/issues",
+  "documentation": "https://github.com/pickeld/hass_addons/glinet",
+  "issue_tracker": "https://github.com/pickeld/hass_addons/glinet/issues",
   "requirements": ["requests"],
   "dependencies": [],
   "codeowners": ["@pickeld"],
