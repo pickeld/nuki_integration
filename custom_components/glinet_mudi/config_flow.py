@@ -1,7 +1,7 @@
 import voluptuous as vol
 from homeassistant import config_entries
 
-DOMAIN = "glinet_mudi"
+DOMAIN = "glinet"
 
 
 class NukiOtpConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
