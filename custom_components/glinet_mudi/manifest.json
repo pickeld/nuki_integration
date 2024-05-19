@@ -1,0 +1,13 @@
+{
+  "domain": "glinet",
+  "name": "GL.iNet Router",
+  "documentation": "https://github.com/pickeld/hass_addons/glinet_mudi",
+  "issue_tracker": "https://github.com/pickeld/hass_addons/glinet_mudi/issues",
+  "requirements": ["requests"],
+  "dependencies": [],
+  "codeowners": ["@pickeld"],
+  "homeassistant": "0.110.0",
+  "version": "0.0.1",
+  "iot_class": "cloud_polling",
+  "config_flow": true
+}
