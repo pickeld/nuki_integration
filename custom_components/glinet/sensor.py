@@ -14,7 +14,7 @@ DOMAIN = "nuki_otp"
 NO_CODE = "------"
 
 
-class GLiNETSensor(SensorEntity):
+class GLiNetSensor(SensorEntity):
     def __init__(self, otp_lifetime_hours):
         self._state = NO_CODE
         self._unique_id = "nuki_otp_code"
