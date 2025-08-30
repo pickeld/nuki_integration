@@ -6,6 +6,7 @@ This custom integration for Home Assistant allows users to generate and manage O
 
 ## Features
 
+
 - Generate OTP codes with a specified lifetime.
 - Automatically delete expired or used OTPs.
 - Display current active OTP codes and their expiry times.
