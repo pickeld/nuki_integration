@@ -62,27 +62,37 @@ If you encounter any issues, check the Home Assistant logs for errors and ensure
 
 This integration uses GitHub releases for version management in HACS:
 
-- Version numbers are defined in both `manifest.json` and `hacs.json`
+- Version numbers are defined in `manifest.json`
 - HACS uses the tag name from the latest GitHub release to determine the version
-- Simply creating Git tags is not sufficient - a GitHub release must be published
+- GitHub Actions automatically creates releases when version tags are pushed
 - Updates are tracked through GitHub releases, not individual commits
 
 ## Contributing
 
 When contributing or updating the integration:
 
-1. Update version numbers in:
-   - `manifest.json`
-   - `hacs.json`
-2. Create and push a Git tag:
+1. Update version number in `manifest.json`
+2. Create and push a Git tag with detailed release notes:
    ```bash
-   git tag -a vX.Y.Z -m "Version X.Y.Z"
+   # Create an annotated tag with release notes
+   git tag -a vX.Y.Z -m "Version X.Y.Z
+
+   Major changes:
+   - Change 1
+   - Change 2
+   
+   Bug fixes:
+   - Fix 1
+   - Fix 2"
+
+   # Push the tag to trigger automatic release
    git push origin vX.Y.Z
    ```
-3. Create a GitHub release using the tag
-   - This is required for HACS to recognize the new version
-   - The release title should match the tag name
-   - Include detailed release notes
+
+The GitHub Action workflow will automatically:
+- Create a GitHub release using the tag
+- Use the tag's message as the release description
+- Make the release available to HACS
 
 ## License
 
