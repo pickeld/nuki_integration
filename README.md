@@ -16,7 +16,6 @@ This custom integration for Home Assistant allows users to generate and manage O
 
 ### HACS Installation
 
-
 If you have HACS installed, you can easily add this repository as a custom integration:
 
 1. Open HACS in the Home Assistant frontend.
