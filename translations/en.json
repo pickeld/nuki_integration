@@ -14,11 +14,10 @@
       }
     },
     "error": {
-      "invalid_api_token": "API token missing",
-      "invalid_otp_username": "OTP username missing",
-      "invalid_nuki_name": "Nuki name missing",
-      "invalid_api_url": "API URL missing",
-      "invalid_otp_lifetime_hours": "OTP lifetime missing"
+      "cannot_connect": "Failed to connect to Nuki API",
+      "invalid_auth": "Invalid API token",
+      "nuki_not_found": "Specified Nuki device not found",
+      "unknown": "Unexpected error occurred"
     },
     "create_entry": {
       "default": "Setup Nuki OTP",

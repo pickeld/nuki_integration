@@ -3,11 +3,26 @@
         "title": "Nuki OTP Setup",
         "step": {
             "user": {
-                "title": "Connect to Nuki OTP"
+                "title": "Connect to Nuki OTP",
+                "description": "Set up your Nuki OTP integration",
+                "data": {
+                    "api_token": "API Token",
+                    "api_url": "API URL",
+                    "nuki_name": "Nuki Name",
+                    "otp_username": "OTP Username",
+                    "otp_lifetime_hours": "OTP Lifetime (Hours)"
+                }
             }
         },
+        "error": {
+            "cannot_connect": "Failed to connect to Nuki API",
+            "invalid_auth": "Invalid API token",
+            "nuki_not_found": "Specified Nuki device not found",
+            "unknown": "Unexpected error occurred"
+        },
         "abort": {
-            "single_instance_allowed": "Only a single configuration of Nuki OTP is allowed."
+            "single_instance_allowed": "Only a single configuration of Nuki OTP is allowed.",
+            "already_configured": "This Nuki device is already configured"
         }
     }
 }

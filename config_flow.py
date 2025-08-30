@@ -84,53 +84,58 @@ async def validate_input(hass: HomeAssistant, data: Dict[str, Any]) -> Dict[str,
     }
 
 
-class NukiOtpConfigFlow(config_entries.ConfigFlow):
+class ConfigFlow(config_entries.ConfigFlow):
     """Handle a config flow for Nuki OTP."""
 
     VERSION = 1
     CONNECTION_CLASS = config_entries.CONN_CLASS_CLOUD_POLLING
-    
-    @property
-    def domain(self):
-        """Return the domain."""
-        return DOMAIN
+    DOMAIN = DOMAIN
+
+    def __init__(self):
+        """Initialize the Nuki OTP config flow."""
+        super().__init__()
+        self._errors = {}
 
     async def async_step_user(
         self, user_input: Optional[Dict[str, Any]] = None
     ) -> FlowResult:
         """Handle the initial step."""
-        errors: Dict[str, str] = {}
-        
-        if user_input is not None:
-            try:
-                info = await validate_input(self.hass, user_input)
-            except CannotConnect:
-                errors["base"] = "cannot_connect"
-            except InvalidAuth:
-                errors["base"] = "invalid_auth"
-            except NukiNotFound:
-                errors["nuki_name"] = "nuki_not_found"
-            except Exception:  # pylint: disable=broad-except
-                logger.exception("Unexpected exception")
-                errors["base"] = "unknown"
-            else:
-                # Set unique ID to prevent duplicate entries
-                await self.async_set_unique_id(
-                    f"{DOMAIN}_{user_input['nuki_name'].lower().replace(' ', '_')}"
-                )
-                self._abort_if_unique_id_configured()
-                
-                return self.async_create_entry(
-                    title=info["title"], 
-                    data=user_input
-                )
+        if user_input is None:
+            return self.async_show_form(
+                step_id="user",
+                data_schema=STEP_USER_DATA_SCHEMA,
+                errors=self._errors,
+            )
+
+        try:
+            info = await validate_input(self.hass, user_input)
+        except CannotConnect:
+            self._errors["base"] = "cannot_connect"
+        except InvalidAuth:
+            self._errors["base"] = "invalid_auth"
+        except NukiNotFound:
+            self._errors["nuki_name"] = "nuki_not_found"
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("Unexpected exception")
+            self._errors["base"] = "unknown"
+        else:
+            await self.async_set_unique_id(
+                f"{DOMAIN}_{user_input['nuki_name'].lower().replace(' ', '_')}"
+            )
+            self._abort_if_unique_id_configured()
+            
+            return self.async_create_entry(
+                title=info["title"],
+                data=user_input
+            )
 
         return self.async_show_form(
             step_id="user",
             data_schema=STEP_USER_DATA_SCHEMA,
-            errors=errors,
+            errors=self._errors,
         )
 
     async def async_step_import(self, import_data: Dict[str, Any]) -> FlowResult:
         """Handle import from configuration.yaml."""
+        self._errors = {}
         return await self.async_step_user(import_data)
