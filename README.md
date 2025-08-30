@@ -58,9 +58,31 @@ Once configured, the integration will provide a sensor and a switch within Home 
 
 If you encounter any issues, check the Home Assistant logs for errors and ensure your configuration details are correct. If problems persist, please report them on the GitHub repository.
 
+## Version Management
+
+This integration uses GitHub releases for version management in HACS:
+
+- Version numbers are defined in both `manifest.json` and `hacs.json`
+- HACS uses the tag name from the latest GitHub release to determine the version
+- Simply creating Git tags is not sufficient - a GitHub release must be published
+- Updates are tracked through GitHub releases, not individual commits
+
 ## Contributing
 
-Contributions to this project are welcome! Feel free to fork the repository and submit pull requests.
+When contributing or updating the integration:
+
+1. Update version numbers in:
+   - `manifest.json`
+   - `hacs.json`
+2. Create and push a Git tag:
+   ```bash
+   git tag -a vX.Y.Z -m "Version X.Y.Z"
+   git push origin vX.Y.Z
+   ```
+3. Create a GitHub release using the tag
+   - This is required for HACS to recognize the new version
+   - The release title should match the tag name
+   - Include detailed release notes
 
 ## License
 
