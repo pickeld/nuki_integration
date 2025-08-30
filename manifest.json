@@ -3,11 +3,12 @@
   "name": "Nuki OTP Generator",
   "documentation": "https://github.com/pickeld/nuki_integration",
   "issue_tracker": "https://github.com/pickeld/nuki_integration/issues",
-  "requirements": ["requests"],
+  "requirements": ["requests>=2.0.0"],
   "dependencies": [],
   "codeowners": ["@pickeld"],
-  "homeassistant": "0.110.0",
-  "version": "1.0.1",
+  "homeassistant": "2023.8.0",
+  "version": "1.0.2",
   "iot_class": "cloud_polling",
-  "config_flow": true
+  "config_flow": true,
+  "integration_type": "hub"
 }

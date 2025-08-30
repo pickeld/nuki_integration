@@ -1,8 +1,11 @@
-"""Improved config flow for Nuki OTP integration."""
+"""Config flow for Nuki OTP integration."""
+from __future__ import annotations
+
 import logging
 from typing import Any, Dict, Optional
 
 import voluptuous as vol
+
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
@@ -16,7 +19,7 @@ from .const import (
 )
 from .helpers import NukiAPIClient, NukiConfig, NukiAPIError
 
-logger = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema({
     vol.Required("api_url", default=DEFAULT_API_URL): vol.All(
@@ -46,10 +49,7 @@ class NukiNotFound(HomeAssistantError):
 
 
 async def validate_input(hass: HomeAssistant, data: Dict[str, Any]) -> Dict[str, Any]:
-    """Validate the user input allows us to connect.
-    
-    Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
-    """
+    """Validate the user input allows us to connect."""
     config = NukiConfig(
         api_token=data["api_token"],
         api_url=data["api_url"],
@@ -74,27 +74,25 @@ async def validate_input(hass: HomeAssistant, data: Dict[str, Any]) -> Dict[str,
             raise InvalidAuth("Invalid API token")
         raise CannotConnect(f"Cannot connect to Nuki API: {err}")
     except Exception as err:
-        logger.exception("Unexpected error during validation")
+        _LOGGER.exception("Unexpected error during validation")
         raise CannotConnect(f"Unexpected error: {err}")
 
-    # Return info that you want to store in the config entry.
     return {
         "title": f"Nuki OTP - {data['nuki_name']}",
         "smartlock_id": smartlock.get("smartlockId"),
     }
 
 
-class ConfigFlow(config_entries.ConfigFlow):
+@config_entries.HANDLERS.register(DOMAIN)
+class NukiConfigFlow(config_entries.ConfigFlow):
     """Handle a config flow for Nuki OTP."""
 
     VERSION = 1
     CONNECTION_CLASS = config_entries.CONN_CLASS_CLOUD_POLLING
-    DOMAIN = DOMAIN
 
-    def __init__(self):
-        """Initialize the Nuki OTP config flow."""
-        super().__init__()
-        self._errors = {}
+    def __init__(self) -> None:
+        """Initialize the config flow."""
+        self._errors: Dict[str, str] = {}
 
     async def async_step_user(
         self, user_input: Optional[Dict[str, Any]] = None
@@ -116,18 +114,14 @@ class ConfigFlow(config_entries.ConfigFlow):
         except NukiNotFound:
             self._errors["nuki_name"] = "nuki_not_found"
         except Exception:  # pylint: disable=broad-except
-            logger.exception("Unexpected exception")
+            _LOGGER.exception("Unexpected exception")
             self._errors["base"] = "unknown"
         else:
             await self.async_set_unique_id(
                 f"{DOMAIN}_{user_input['nuki_name'].lower().replace(' ', '_')}"
             )
             self._abort_if_unique_id_configured()
-            
-            return self.async_create_entry(
-                title=info["title"],
-                data=user_input
-            )
+            return self.async_create_entry(title=info["title"], data=user_input)
 
         return self.async_show_form(
             step_id="user",
@@ -137,5 +131,4 @@ class ConfigFlow(config_entries.ConfigFlow):
 
     async def async_step_import(self, import_data: Dict[str, Any]) -> FlowResult:
         """Handle import from configuration.yaml."""
-        self._errors = {}
         return await self.async_step_user(import_data)
