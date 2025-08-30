@@ -1,188 +1,234 @@
 import logging
 import random
+import asyncio
 from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
 
 import aiohttp
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.exceptions import ConfigEntryNotReady
 
 logger = logging.getLogger(__name__)
 
-API_TOKEN = None
-API_URL = None
-OPT_USERNAME = None
-NUKI_NAME = None
-OTP_LIFETIME_HOURS = 0
+# Constants
+DEFAULT_TIMEOUT = 30
+MAX_RETRIES = 3
+RETRY_DELAY = 1
 
 
-def initialize(api_token, api_url, otp_username, nuki_name, otp_lifetime_hours):
-    global API_TOKEN, API_URL, OPT_USERNAME, NUKI_NAME, OTP_LIFETIME_HOURS
-    API_TOKEN = api_token
-    API_URL = api_url
-    OPT_USERNAME = otp_username
-    NUKI_NAME = nuki_name
-    OTP_LIFETIME_HOURS = otp_lifetime_hours
+@dataclass
+class NukiConfig:
+    """Configuration data for Nuki integration."""
+    api_token: str
+    api_url: str
+    otp_username: str
+    nuki_name: str
+    otp_lifetime_hours: int
 
 
-async def get_auth() -> list[dict]:
-    auths = []
-    results = await request(uri=f'smartlock/auth?type=13')
-    for auth in results:
-        if auth.get('name').startswith('OTP'):
-            auths.append(auth)
-    return auths
+class NukiAPIError(Exception):
+    """Custom exception for Nuki API errors."""
+    pass
 
 
-async def set_auth():
-    start_date, end_date = get_time_range()
-    smartlock: dict = await get_smartlock()
-    code = genetate_otp_code()
-    data = {
-        "name": "OTP_code",
-        "start_date": str(start_date),
-        "end_date": str(end_date),
-        "allowedWeekDays": 127,
-        "allowedFromTime": 0,
-        "allowedUntilTime": 0,
-        "smartlockIds": [smartlock['smartlockId']],
-        "remoteAllowed": True,
-        "smartActionsEnabled": False,
-        "type": 13,
-        "code": code
-    }
-    headers = {
-        "accept": "application/json",
-        "authorization": f"Bearer {API_TOKEN}"
-    }
-
-    async with aiohttp.ClientSession() as session:
-        async with session.put(url=f'{API_URL}/smartlock/auth', headers=headers, json=data) as response:
-            text_response = await response.text()
-            if response.status == 204:
-                result = {
-                    "start": str(start_date),
-                    "end": str(end_date),
-                    "smartlockId": smartlock['smartlockId'],
-                    "code": code
-                }
-                logger.info(f'auths created: (response code: {response.status}): {result}')
-                return True
-            else:
-                logger.error(f'unable to create auth: (response code: {response.status}): {text_response}')
+class NukiAPIClient:
+    """Nuki API client with proper error handling and async support."""
+    
+    def __init__(self, hass: HomeAssistant, config: NukiConfig):
+        self.hass = hass
+        self.config = config
+        self._session = async_get_clientsession(hass)
+        
+    @property
+    def headers(self) -> Dict[str, str]:
+        """Get API headers."""
+        return {
+            "Authorization": f"Bearer {self.config.api_token}",
+            "Accept": "application/json"
+        }
+    
+    async def _make_request(
+        self,
+        method: str,
+        endpoint: str,
+        json_data: Optional[Dict] = None,
+        retries: int = MAX_RETRIES
+    ):
+        """Make HTTP request with retry logic."""
+        url = f"{self.config.api_url}/{endpoint}"
+        
+        for attempt in range(retries + 1):
+            try:
+                timeout = aiohttp.ClientTimeout(total=DEFAULT_TIMEOUT)
+                async with self._session.request(
+                    method, url, headers=self.headers, json=json_data, timeout=timeout
+                ) as response:
+                    if response.status == 200:
+                        return await response.json()
+                    elif response.status == 204:
+                        return {}
+                    else:
+                        error_text = await response.text()
+                        raise NukiAPIError(
+                            f"API request failed: {response.status} - {error_text}"
+                        )
+                        
+            except asyncio.TimeoutError:
+                if attempt < retries:
+                    logger.warning(f"Request timeout, retrying in {RETRY_DELAY}s...")
+                    await asyncio.sleep(RETRY_DELAY)
+                    continue
+                raise NukiAPIError("Request timeout after retries")
+                
+            except aiohttp.ClientError as e:
+                if attempt < retries:
+                    logger.warning(f"Client error, retrying: {e}")
+                    await asyncio.sleep(RETRY_DELAY)
+                    continue
+                raise NukiAPIError(f"Client error: {e}")
+        
+        raise NukiAPIError("Max retries exceeded")
+    
+    async def get_auth_codes(self) -> List[Dict]:
+        """Get all OTP auth codes."""
+        try:
+            results = await self._make_request("GET", "smartlock/auth?type=13")
+            return [auth for auth in results if auth.get('name', '').startswith('OTP')]
+        except NukiAPIError:
+            logger.exception("Failed to get auth codes")
+            return []
+    
+    async def get_smartlock(self) -> Optional[Dict]:
+        """Get smartlock by name."""
+        try:
+            locks = await self._make_request("GET", "smartlock")
+            for lock in locks:
+                if lock.get('name') == self.config.nuki_name:
+                    return lock
+            logger.error(f"Smartlock '{self.config.nuki_name}' not found")
+            return None
+        except NukiAPIError:
+            logger.exception("Failed to get smartlock")
+            return None
+    
+    async def create_auth_code(self) -> bool:
+        """Create new OTP auth code."""
+        try:
+            smartlock = await self.get_smartlock()
+            if not smartlock:
                 return False
-
-
-async def del_auths(auths: list):
-    headers = {"accept": "application/json",
-               "authorization": f"Bearer {API_TOKEN}"}
-    ids = [i['id'] for i in auths]
-    async with aiohttp.ClientSession() as session:
-        async with session.delete(url=f'{API_URL}/smartlock/auth', headers=headers, json=ids) as response:
-            text_response = await response.text()
-            if response.status == 204:
-                logger.info(f'auths ({ids}) deleted: (response code: {response.status})')
-            else:
-                logger.error(f'unable to delete auths ({ids}): (response code: {response.status}) {text_response}')
-
-
-async def request(uri) -> list:
-    headers = {
-        "Authorization": f"Bearer {API_TOKEN}",
-        "Accept": "application/json"
-    }
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url=f'{API_URL}/{uri}', headers=headers) as response:
-            text_response = await response.json()
-            if response.status == 200:
-                return text_response
-            else:
-                raise Exception(
-                    f"unable to send request from '{uri}': (response code: {response.status}) {text_response}")
-
-
-async def get_smartlock() -> dict:
-    headers = {
-        "Authorization": f"Bearer {API_TOKEN}",
-        "Accept": "application/json"
-    }
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url=f'{API_URL}/smartlock', headers=headers) as response:
-            text_response = await response.json()
-            if response.status == 200:
-                locks = await response.json()
-                for lock in locks:
-                    if lock.get('name') == NUKI_NAME:
-                        logger.debug(f"successfuly got smartlock: (return code: {response.status}) {lock}")
-                        return lock
-            else:
-                logger.error(f"failed to get smartlock: (return code: {response.status}) {text_response}")
-
-    return {}
-
-
-async def house_keeper():
-    try:
-        auths: list = await get_auth()
-        if not auths:
-            return
-        for auth in auths:
-            expired: bool = await is_expired(auth)
-            used: bool = await is_used(auth)
-            logger.debug(f'houseleeper: {auth["name"]} - expired: {expired}, used: {used}')
-            if expired or used:
-                await del_auths(auths=[auth])
-    except Exception as e:
-        logger.exception(e)
-
-
-def genetate_otp_code(length=6) -> int:
-    _ = ''.join(random.choice('123456789') for _ in range(length))
-    return int(_)
-
-
-def get_time_range() -> tuple:
-    now = datetime.utcnow()
-    three_hours_from_now = now + timedelta(hours=OTP_LIFETIME_HOURS)
-    start_date = now.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
-    end_date = three_hours_from_now.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
-    return start_date, end_date
-
-
-async def is_expired(obj: dict) -> bool:
-    try:
-        creation_date = obj['creationDate']
-        creation_date = datetime.strptime(creation_date, "%Y-%m-%dT%H:%M:%S.%fZ")
-        lifetime = datetime.utcnow() - creation_date
-        if lifetime.total_seconds() < OTP_LIFETIME_HOURS * 3600:
-            return False
-        logger.info(f'auth {obj.get("name")} expired')
-        return True
-    except KeyError:
-        return False
-
-
-async def is_used(obj: dict) -> bool:
-    try:
-        smartlock = await get_smartlock()
-        actions = await request(uri=f'smartlock/{smartlock["smartlockId"]}/log?action=1&authId={obj["id"]}')
-        if actions:
-            logger.info(f'auth {obj.get("name")} used')
+                
+            start_date, end_date = self._get_time_range()
+            code = self._generate_otp_code()
+            
+            data = {
+                "name": f"{self.config.otp_username}_code",
+                "start_date": start_date,
+                "end_date": end_date,
+                "allowedWeekDays": 127,
+                "allowedFromTime": 0,
+                "allowedUntilTime": 0,
+                "smartlockIds": [smartlock['smartlockId']],
+                "remoteAllowed": True,
+                "smartActionsEnabled": False,
+                "type": 13,
+                "code": code
+            }
+            
+            await self._make_request("PUT", "smartlock/auth", data)
+            logger.info(f"Auth code created: {code}")
             return True
-        return False
-    except KeyError:
-        return False
-
-
-async def valid(code):
-    try:
-        if not code:
-            return
-        auths = await get_auth()
-        for auth in auths:
-            if int(code) == auth['code']:
-                if not is_used(auth) and not is_expired(auth):
-                    return dict(result=True)
-        return dict(result=False)
-    except Exception as e:
-        logger.error(f'general error: {e}')
-        return dict(result=e)
+            
+        except NukiAPIError:
+            logger.exception("Failed to create auth code")
+            return False
+    
+    async def delete_auth_codes(self, auth_codes: List[Dict]) -> bool:
+        """Delete auth codes."""
+        if not auth_codes:
+            return True
+            
+        try:
+            ids = [auth['id'] for auth in auth_codes]
+            await self._make_request("DELETE", "smartlock/auth", {"ids": ids})
+            logger.info(f"Deleted auth codes: {ids}")
+            return True
+        except NukiAPIError:
+            logger.exception("Failed to delete auth codes")
+            return False
+    
+    async def get_smartlock_logs(self, smartlock_id: str, auth_id: str) -> List[Dict]:
+        """Get smartlock usage logs."""
+        try:
+            result = await self._make_request(
+                "GET",
+                f"smartlock/{smartlock_id}/log?action=1&authId={auth_id}"
+            )
+            return result if isinstance(result, list) else []
+        except NukiAPIError:
+            logger.exception("Failed to get smartlock logs")
+            return []
+    
+    def _generate_otp_code(self, length: int = 6) -> int:
+        """Generate random OTP code."""
+        code_str = ''.join(random.choice('123456789') for _ in range(length))
+        return int(code_str)
+    
+    def _get_time_range(self) -> Tuple[str, str]:
+        """Get time range for OTP validity."""
+        now = datetime.utcnow()
+        end_time = now + timedelta(hours=self.config.otp_lifetime_hours)
+        
+        start_date = now.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+        end_date = end_time.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+        
+        return start_date, end_date
+    
+    async def is_auth_expired(self, auth: Dict) -> bool:
+        """Check if auth code is expired."""
+        try:
+            creation_date = datetime.strptime(
+                auth['creationDate'], 
+                "%Y-%m-%dT%H:%M:%S.%fZ"
+            )
+            lifetime = datetime.utcnow() - creation_date
+            return lifetime.total_seconds() >= self.config.otp_lifetime_hours * 3600
+        except (KeyError, ValueError):
+            return True
+    
+    async def is_auth_used(self, auth: Dict) -> bool:
+        """Check if auth code has been used."""
+        try:
+            smartlock = await self.get_smartlock()
+            if not smartlock:
+                return False
+                
+            logs = await self.get_smartlock_logs(
+                smartlock['smartlockId'], 
+                auth['id']
+            )
+            return len(logs) > 0
+        except Exception:
+            logger.exception("Error checking auth usage")
+            return False
+    
+    async def cleanup_expired_codes(self) -> None:
+        """Clean up expired or used auth codes."""
+        try:
+            auth_codes = await self.get_auth_codes()
+            if not auth_codes:
+                return
+                
+            to_delete = []
+            for auth in auth_codes:
+                if await self.is_auth_expired(auth) or await self.is_auth_used(auth):
+                    to_delete.append(auth)
+                    logger.debug(f"Marking for deletion: {auth['name']}")
+            
+            if to_delete:
+                await self.delete_auth_codes(to_delete)
+                
+        except Exception:
+            logger.exception("Error during cleanup")
