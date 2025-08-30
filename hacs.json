@@ -3,8 +3,5 @@
   "domains": ["nuki_otp"],
   "documentation": "https://github.com/pickeld/nuki-otp/",
   "issue_tracker": "https://github.com/pickeld/nuki-otp/issues",
-  "version": "1.1.0",
-  "content_in_root": true,
-  "zip_release": true,
-  "filename": "nuki_integration.zip"
+  "content_in_root": true
 }
