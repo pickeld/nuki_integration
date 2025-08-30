@@ -1,7 +1,10 @@
 {
   "name": "Nuki OTP Generator",
   "domains": ["nuki_otp"],
-  "documentation": "https://github.com/pickeld/nuki-otp/",
-  "issue_tracker": "https://github.com/pickeld/nuki-otp/issues",
-  "content_in_root": true
+  "documentation": "https://github.com/pickeld/nuki_integration",
+  "issue_tracker": "https://github.com/pickeld/nuki_integration/issues",
+  "content_in_root": true,
+  "render_readme": true,
+  "homeassistant": "0.110.0",
+  "hacs": "1.6.0"
 }
