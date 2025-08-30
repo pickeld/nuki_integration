@@ -60,39 +60,40 @@ If you encounter any issues, check the Home Assistant logs for errors and ensure
 
 ## Version Management
 
-This integration uses GitHub releases for version management in HACS:
+This integration uses GitHub releases for version management in HACS. The version in `manifest.json` is the source of truth and should match the release tag.
 
-- Version numbers are defined in `manifest.json`
-- HACS uses the tag name from the latest GitHub release to determine the version
-- GitHub Actions automatically creates releases when version tags are pushed
-- Updates are tracked through GitHub releases, not individual commits
+### Creating a New Release in VSCode
 
-## Contributing
+1. Update version in `manifest.json`
+2. Stage and commit the change:
+   - Open the Source Control panel (Ctrl+Shift+G or Command+Shift+G)
+   - Stage the manifest.json change
+   - Enter commit message: "chore: bump version to X.Y.Z"
+   - Click the checkmark to commit
 
-When contributing or updating the integration:
+3. Create a tag:
+   - Open the Command Palette (Ctrl+Shift+P or Command+Shift+P)
+   - Type "Git: Create Tag"
+   - Enter tag name: `vX.Y.Z` (e.g., v1.1.0)
+   - Enter tag message:
+     ```
+     Version X.Y.Z
 
-1. Update version number in `manifest.json`
-2. Create and push a Git tag with detailed release notes:
-   ```bash
-   # Create an annotated tag with release notes
-   git tag -a vX.Y.Z -m "Version X.Y.Z
+     Changes:
+     - Change 1
+     - Change 2
+     ```
 
-   Major changes:
-   - Change 1
-   - Change 2
-   
-   Bug fixes:
-   - Fix 1
-   - Fix 2"
+4. Push changes with tag:
+   - Open the Command Palette
+   - Type "Git: Push"
+   - Select "Push Tags"
+   - Choose "Push all tags"
 
-   # Push the tag to trigger automatic release
-   git push origin vX.Y.Z
-   ```
-
-The GitHub Action workflow will automatically:
-- Create a GitHub release using the tag
-- Use the tag's message as the release description
-- Make the release available to HACS
+The GitHub Action will automatically:
+- Create a GitHub release from the tag
+- Use the tag message as release notes
+- Make the release available in HACS
 
 ## License
 
