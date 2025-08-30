@@ -60,9 +60,9 @@ If you encounter any issues, check the Home Assistant logs for errors and ensure
 
 ## Version Management
 
-This integration uses GitHub releases for version management in HACS. The version in `manifest.json` is the source of truth and should match the release tag.
+This integration uses GitHub releases for version management in HACS. The version in `manifest.json` is the source of truth.
 
-### Creating a New Release in VSCode
+### Creating a New Release
 
 1. Update version in `manifest.json`
 2. Stage and commit the change:
@@ -71,29 +71,24 @@ This integration uses GitHub releases for version management in HACS. The versio
    - Enter commit message: "chore: bump version to X.Y.Z"
    - Click the checkmark to commit
 
-3. Create a tag:
-   - Open the Command Palette (Ctrl+Shift+P or Command+Shift+P)
-   - Type "Git: Create Tag"
-   - Enter tag name: `vX.Y.Z` (e.g., v1.1.0)
-   - Enter tag message:
-     ```
-     Version X.Y.Z
-
-     Changes:
-     - Change 1
-     - Change 2
-     ```
-
-4. Push changes with tag:
-   - Open the Command Palette
-   - Type "Git: Push"
-   - Select "Push Tags"
-   - Choose "Push all tags"
+3. Push the changes:
+   - Click the sync button in VSCode
+   - Or use the Command Palette: "Git: Push"
 
 The GitHub Action will automatically:
+- Create a Git tag matching the version
 - Create a GitHub release from the tag
-- Use the tag message as release notes
 - Make the release available in HACS
+
+### How it Works
+
+The automated release process:
+1. Monitors changes to `manifest.json`
+2. When version changes, creates a tag if needed
+3. Creates a GitHub release if it doesn't exist
+4. HACS uses the release version for updates
+
+This ensures the version in `manifest.json` always matches the latest release.
 
 ## License
 
