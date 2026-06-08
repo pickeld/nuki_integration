@@ -83,12 +83,10 @@ async def validate_input(hass: HomeAssistant, data: Dict[str, Any]) -> Dict[str,
     }
 
 
-@config_entries.HANDLERS.register(DOMAIN)
-class NukiConfigFlow(config_entries.ConfigFlow):
+class NukiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Nuki OTP."""
 
     VERSION = 1
-    CONNECTION_CLASS = config_entries.CONN_CLASS_CLOUD_POLLING
 
     def __init__(self) -> None:
         """Initialize the config flow."""

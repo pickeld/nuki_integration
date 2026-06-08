@@ -1,16 +1,17 @@
-import logging
-import random
+"""API client and helpers for the Nuki OTP integration."""
 import asyncio
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+import logging
+import secrets
 from dataclasses import dataclass
+from datetime import timedelta
+from typing import Dict, List, Optional, Tuple
 
 import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.util import dt as dt_util
 
-logger = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(__name__)
 
 # Constants
 DEFAULT_TIMEOUT = 30
@@ -30,35 +31,34 @@ class NukiConfig:
 
 class NukiAPIError(Exception):
     """Custom exception for Nuki API errors."""
-    pass
 
 
 class NukiAPIClient:
     """Nuki API client with proper error handling and async support."""
-    
+
     def __init__(self, hass: HomeAssistant, config: NukiConfig):
         self.hass = hass
         self.config = config
         self._session = async_get_clientsession(hass)
-        
+
     @property
     def headers(self) -> Dict[str, str]:
         """Get API headers."""
         return {
             "Authorization": f"Bearer {self.config.api_token}",
-            "Accept": "application/json"
+            "Accept": "application/json",
         }
-    
+
     async def _make_request(
         self,
         method: str,
         endpoint: str,
         json_data: Optional[Dict] = None,
-        retries: int = MAX_RETRIES
+        retries: int = MAX_RETRIES,
     ):
         """Make HTTP request with retry logic."""
         url = f"{self.config.api_url}/{endpoint}"
-        
+
         for attempt in range(retries + 1):
             try:
                 timeout = aiohttp.ClientTimeout(total=DEFAULT_TIMEOUT)
@@ -67,62 +67,65 @@ class NukiAPIClient:
                 ) as response:
                     if response.status == 200:
                         return await response.json()
-                    elif response.status == 204:
+                    if response.status == 204:
                         return {}
-                    else:
-                        error_text = await response.text()
-                        raise NukiAPIError(
-                            f"API request failed: {response.status} - {error_text}"
-                        )
-                        
+                    error_text = await response.text()
+                    raise NukiAPIError(
+                        f"API request failed: {response.status} - {error_text}"
+                    )
+
             except asyncio.TimeoutError:
                 if attempt < retries:
-                    logger.warning(f"Request timeout, retrying in {RETRY_DELAY}s...")
+                    _LOGGER.warning("Request timeout, retrying in %ss...", RETRY_DELAY)
                     await asyncio.sleep(RETRY_DELAY)
                     continue
                 raise NukiAPIError("Request timeout after retries")
-                
-            except aiohttp.ClientError as e:
+
+            except aiohttp.ClientError as err:
                 if attempt < retries:
-                    logger.warning(f"Client error, retrying: {e}")
+                    _LOGGER.warning("Client error, retrying: %s", err)
                     await asyncio.sleep(RETRY_DELAY)
                     continue
-                raise NukiAPIError(f"Client error: {e}")
-        
+                raise NukiAPIError(f"Client error: {err}") from err
+
         raise NukiAPIError("Max retries exceeded")
-    
+
     async def get_auth_codes(self) -> List[Dict]:
-        """Get all OTP auth codes."""
+        """Get all OTP auth codes created by this integration."""
         try:
             results = await self._make_request("GET", "smartlock/auth?type=13")
-            return [auth for auth in results if auth.get('name', '').startswith('OTP')]
+            prefix = self.config.otp_username
+            return [
+                auth for auth in results
+                if auth.get("name", "").startswith(prefix)
+            ]
         except NukiAPIError:
-            logger.exception("Failed to get auth codes")
+            _LOGGER.exception("Failed to get auth codes")
             return []
-    
+
     async def get_smartlock(self) -> Optional[Dict]:
         """Get smartlock by name."""
         try:
             locks = await self._make_request("GET", "smartlock")
             for lock in locks:
-                if lock.get('name') == self.config.nuki_name:
+                if lock.get("name") == self.config.nuki_name:
                     return lock
-            logger.error(f"Smartlock '{self.config.nuki_name}' not found")
+            _LOGGER.error("Smartlock '%s' not found", self.config.nuki_name)
             return None
         except NukiAPIError:
-            logger.exception("Failed to get smartlock")
+            _LOGGER.exception("Failed to get smartlock")
             return None
-    
+
     async def create_auth_code(self) -> bool:
         """Create new OTP auth code."""
         try:
             smartlock = await self.get_smartlock()
             if not smartlock:
                 return False
-                
+
             start_date, end_date = self._get_time_range()
             code = self._generate_otp_code()
-            
+
             data = {
                 "name": f"{self.config.otp_username}_code",
                 "start_date": start_date,
@@ -130,105 +133,104 @@ class NukiAPIClient:
                 "allowedWeekDays": 127,
                 "allowedFromTime": 0,
                 "allowedUntilTime": 0,
-                "smartlockIds": [smartlock['smartlockId']],
+                "smartlockIds": [smartlock["smartlockId"]],
                 "remoteAllowed": True,
                 "smartActionsEnabled": False,
                 "type": 13,
-                "code": code
+                "code": code,
             }
-            
+
             await self._make_request("PUT", "smartlock/auth", data)
-            logger.info(f"Auth code created: {code}")
+            _LOGGER.info("New OTP auth code created")
             return True
-            
+
         except NukiAPIError:
-            logger.exception("Failed to create auth code")
+            _LOGGER.exception("Failed to create auth code")
             return False
-    
+
     async def delete_auth_codes(self, auth_codes: List[Dict]) -> bool:
         """Delete auth codes."""
         if not auth_codes:
             return True
-            
+
         try:
-            ids = [auth['id'] for auth in auth_codes]
+            ids = [auth["id"] for auth in auth_codes]
             await self._make_request("DELETE", "smartlock/auth", {"ids": ids})
-            logger.info(f"Deleted auth codes: {ids}")
+            _LOGGER.info("Deleted %d auth code(s)", len(ids))
             return True
         except NukiAPIError:
-            logger.exception("Failed to delete auth codes")
+            _LOGGER.exception("Failed to delete auth codes")
             return False
-    
+
     async def get_smartlock_logs(self, smartlock_id: str, auth_id: str) -> List[Dict]:
         """Get smartlock usage logs."""
         try:
             result = await self._make_request(
                 "GET",
-                f"smartlock/{smartlock_id}/log?action=1&authId={auth_id}"
+                f"smartlock/{smartlock_id}/log?action=1&authId={auth_id}",
             )
             return result if isinstance(result, list) else []
         except NukiAPIError:
-            logger.exception("Failed to get smartlock logs")
+            _LOGGER.exception("Failed to get smartlock logs")
             return []
-    
+
     def _generate_otp_code(self, length: int = 6) -> int:
-        """Generate random OTP code."""
-        code_str = ''.join(random.choice('123456789') for _ in range(length))
+        """Generate a cryptographically secure random OTP code."""
+        code_str = "".join(secrets.choice("123456789") for _ in range(length))
         return int(code_str)
-    
+
     def _get_time_range(self) -> Tuple[str, str]:
         """Get time range for OTP validity."""
-        now = datetime.utcnow()
+        now = dt_util.utcnow()
         end_time = now + timedelta(hours=self.config.otp_lifetime_hours)
-        
-        start_date = now.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
-        end_date = end_time.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
-        
+
+        start_date = now.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        end_date = end_time.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
         return start_date, end_date
-    
+
     async def is_auth_expired(self, auth: Dict) -> bool:
         """Check if auth code is expired."""
         try:
-            creation_date = datetime.strptime(
-                auth['creationDate'], 
-                "%Y-%m-%dT%H:%M:%S.%fZ"
-            )
-            lifetime = datetime.utcnow() - creation_date
+            creation_date = dt_util.parse_datetime(auth["creationDate"])
+            if creation_date is None:
+                return True
+            lifetime = dt_util.utcnow() - creation_date
             return lifetime.total_seconds() >= self.config.otp_lifetime_hours * 3600
         except (KeyError, ValueError):
             return True
-    
+
     async def is_auth_used(self, auth: Dict) -> bool:
         """Check if auth code has been used."""
         try:
             smartlock = await self.get_smartlock()
             if not smartlock:
                 return False
-                
+
             logs = await self.get_smartlock_logs(
-                smartlock['smartlockId'], 
-                auth['id']
+                smartlock["smartlockId"],
+                auth["id"],
             )
             return len(logs) > 0
         except Exception:
-            logger.exception("Error checking auth usage")
+            _LOGGER.exception("Error checking auth usage")
             return False
-    
+
     async def cleanup_expired_codes(self) -> None:
         """Clean up expired or used auth codes."""
         try:
             auth_codes = await self.get_auth_codes()
             if not auth_codes:
                 return
-                
+
             to_delete = []
             for auth in auth_codes:
                 if await self.is_auth_expired(auth) or await self.is_auth_used(auth):
                     to_delete.append(auth)
-                    logger.debug(f"Marking for deletion: {auth['name']}")
-            
+                    _LOGGER.debug("Marking for deletion: %s", auth.get("name"))
+
             if to_delete:
                 await self.delete_auth_codes(to_delete)
-                
+
         except Exception:
-            logger.exception("Error during cleanup")
+            _LOGGER.exception("Error during cleanup")

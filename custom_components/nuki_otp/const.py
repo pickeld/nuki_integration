@@ -1,7 +1,6 @@
 """Constants for the Nuki OTP integration."""
 
 DOMAIN = "nuki_otp"
-CUSTOM_EVENT = "nuki_otp_switch_state_changed"
 
 # Default values
 DEFAULT_API_URL = "https://api.nuki.io"
