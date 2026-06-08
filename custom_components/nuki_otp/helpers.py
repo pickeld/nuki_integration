@@ -134,8 +134,12 @@ class NukiAPIClient:
 
             data = {
                 "name": name,
-                "start_date": start_date,
-                "end_date": end_date,
+                # Nuki Web API SmartlocksAuthCreate uses allowedFromDate/
+                # allowedUntilDate (ISO-8601). The old start_date/end_date keys
+                # are not in the schema and were silently ignored, so codes
+                # never honored otp_lifetime_hours.
+                "allowedFromDate": start_date,
+                "allowedUntilDate": end_date,
                 "allowedWeekDays": 127,
                 "allowedFromTime": 0,
                 "allowedUntilTime": 0,
