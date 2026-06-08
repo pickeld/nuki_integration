@@ -1,6 +1,6 @@
 {
   "name": "Nuki OTP Generator",
-  "content_in_root": true,
+  "homeassistant": "2023.8.0",
   "render_readme": true,
   "hide_default_branch": true
 }
