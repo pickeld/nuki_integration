@@ -4,7 +4,7 @@ import logging
 import secrets
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import aiohttp
 from homeassistant.core import HomeAssistant
@@ -58,7 +58,7 @@ class NukiAPIClient:
         self,
         method: str,
         endpoint: str,
-        json_data: Optional[Dict] = None,
+        json_data: Optional[Union[Dict, List]] = None,
         retries: int = MAX_RETRIES,
     ):
         """Make HTTP request with retry logic."""
@@ -98,7 +98,9 @@ class NukiAPIClient:
     async def get_auth_codes(self) -> List[Dict]:
         """Get all OTP auth codes created by this integration."""
         try:
-            results = await self._make_request("GET", "smartlock/auth?type=13")
+            # Nuki Web API filters auth types via the plural "types" query
+            # param (comma-separated). 13 = keypad code.
+            results = await self._make_request("GET", "smartlock/auth?types=13")
             prefix = self.config.otp_username
             return [
                 auth for auth in results
@@ -167,8 +169,12 @@ class NukiAPIClient:
             return True
 
         try:
+            # Nuki Web API DELETE /smartlock/auth expects a bare JSON array of
+            # string auth ids (e.g. ["id1", "id2"]), NOT an object such as
+            # {"ids": [...]}. The wrapped shape fails schema validation and the
+            # codes are never removed. The auth "id" field is a string.
             ids = [auth["id"] for auth in auth_codes]
-            await self._make_request("DELETE", "smartlock/auth", {"ids": ids})
+            await self._make_request("DELETE", "smartlock/auth", ids)
             # Drop the cached codes for the deleted auths so the sensor falls
             # back to "no code" once they are gone.
             for auth in auth_codes:
