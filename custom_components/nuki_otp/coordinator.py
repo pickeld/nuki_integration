@@ -37,9 +37,17 @@ class NukiOTPDataCoordinator(DataUpdateCoordinator):
             # Get current auth codes
             auth_codes = await self.api_client.get_auth_codes()
 
+            current_code = auth_codes[0] if auth_codes else None
+            if current_code is not None:
+                # The API never returns the secret code on read; surface the
+                # code we cached locally when we generated it.
+                cached = self.api_client.get_cached_code(current_code.get("name", ""))
+                if cached is not None:
+                    current_code = {**current_code, "code": cached}
+
             return {
                 "auth_codes": auth_codes,
-                "current_code": auth_codes[0] if auth_codes else None,
+                "current_code": current_code,
                 "has_active_code": len(auth_codes) > 0,
             }
         except Exception as err:

@@ -40,6 +40,11 @@ class NukiAPIClient:
         self.hass = hass
         self.config = config
         self._session = async_get_clientsession(hass)
+        # Cache of generated OTP codes keyed by auth name. The Nuki API never
+        # returns the secret code on read (it is write-only), so we keep the
+        # code we generated locally to surface it through the sensor. Sensitive:
+        # never log the values stored here.
+        self._code_cache: Dict[str, str] = {}
 
     @property
     def headers(self) -> Dict[str, str]:
@@ -125,9 +130,10 @@ class NukiAPIClient:
 
             start_date, end_date = self._get_time_range()
             code = self._generate_otp_code()
+            name = f"{self.config.otp_username}_code"
 
             data = {
-                "name": f"{self.config.otp_username}_code",
+                "name": name,
                 "start_date": start_date,
                 "end_date": end_date,
                 "allowedWeekDays": 127,
@@ -141,6 +147,9 @@ class NukiAPIClient:
             }
 
             await self._make_request("PUT", "smartlock/auth", data)
+            # Cache the generated code so the sensor can surface it; the API
+            # will not return it on subsequent reads.
+            self._code_cache[name] = str(code)
             _LOGGER.info("New OTP auth code created")
             return True
 
@@ -156,11 +165,23 @@ class NukiAPIClient:
         try:
             ids = [auth["id"] for auth in auth_codes]
             await self._make_request("DELETE", "smartlock/auth", {"ids": ids})
+            # Drop the cached codes for the deleted auths so the sensor falls
+            # back to "no code" once they are gone.
+            for auth in auth_codes:
+                self._code_cache.pop(auth.get("name", ""), None)
             _LOGGER.info("Deleted %d auth code(s)", len(ids))
             return True
         except NukiAPIError:
             _LOGGER.exception("Failed to delete auth codes")
             return False
+
+    def get_cached_code(self, name: str) -> Optional[str]:
+        """Return the locally cached code for an auth name, if known.
+
+        The Nuki API never returns the secret code on read, so this is the
+        only way to surface the currently active code.
+        """
+        return self._code_cache.get(name)
 
     async def get_smartlock_logs(self, smartlock_id: str, auth_id: str) -> List[Dict]:
         """Get smartlock usage logs."""
