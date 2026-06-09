@@ -241,10 +241,15 @@ class NukiAPIClient:
         except (KeyError, ValueError):
             return True
 
-    async def is_auth_used(self, auth: Dict) -> bool:
-        """Check if auth code has been used."""
+    async def is_auth_used(self, auth: Dict, smartlock: Optional[Dict] = None) -> bool:
+        """Check if auth code has been used.
+
+        Pass ``smartlock`` to reuse an already-fetched smartlock and avoid
+        re-fetching it per call; falls back to fetching when omitted.
+        """
         try:
-            smartlock = await self.get_smartlock()
+            if smartlock is None:
+                smartlock = await self.get_smartlock()
             if not smartlock:
                 return False
 
@@ -264,9 +269,14 @@ class NukiAPIClient:
             if not auth_codes:
                 return
 
+            # Fetch the smartlock once per cleanup cycle and reuse it for every
+            # is_auth_used() check, instead of re-fetching the full smartlock
+            # list per code (an N+1 against the Nuki cloud API).
+            smartlock = await self.get_smartlock()
+
             to_delete = []
             for auth in auth_codes:
-                if await self.is_auth_expired(auth) or await self.is_auth_used(auth):
+                if await self.is_auth_expired(auth) or await self.is_auth_used(auth, smartlock):
                     to_delete.append(auth)
                     _LOGGER.debug("Marking for deletion: %s", auth.get("name"))
 
