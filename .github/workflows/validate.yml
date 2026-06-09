@@ -3,12 +3,15 @@ name: Validate
 on:
   push:
   pull_request:
+  release:
+    types: [published]
   schedule:
     - cron: "0 0 * * *"
   workflow_dispatch:
 
 jobs:
   validate-hacs:
+    name: HACS
     runs-on: "ubuntu-latest"
     steps:
       - uses: "actions/checkout@v4"
@@ -16,12 +19,15 @@ jobs:
         uses: "hacs/action@main"
         with:
           category: integration
-          # This is a personal integration that is not registered in
+          # The nuki_otp brand is not yet registered in
           # home-assistant/brands, so skip the brands check that would
-          # otherwise fail validation.
+          # otherwise fail validation. Remove this `ignore` once the brand
+          # PR is merged (required before HACS default-store inclusion).
+          # See SUBMISSION.md.
           ignore: brands
 
   validate-hassfest:
+    name: Hassfest
     runs-on: "ubuntu-latest"
     steps:
       - uses: "actions/checkout@v4"

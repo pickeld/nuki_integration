@@ -3,6 +3,17 @@
 All notable changes to the Nuki OTP Generator integration are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- **CI now validates on releases too.** The `Validate` workflow (HACS Action +
+  hassfest) already ran on push and pull requests; it now also runs on
+  published releases, so every release is checked the same way HACS validates
+  it. Added `SUBMISSION.md` with the step-by-step checklist for getting the
+  integration into the HACS default store (brand registration + the
+  `hacs/default` PR), both of which must be opened from the repo owner's
+  GitHub account.
+
 ## [2.5.0] - 2026-06-09
 
 ### Added
