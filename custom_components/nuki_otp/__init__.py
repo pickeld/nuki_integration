@@ -10,6 +10,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import NukiOTPDataCoordinator
+from .frontend import async_register_card
 from .helpers import NukiAPIClient, NukiConfig
 
 PLATFORMS = ["sensor", "switch"]
@@ -24,6 +25,10 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Nuki OTP from a config entry."""
     hass.data.setdefault(DOMAIN, {})
+
+    # Serve and auto-load the bundled Lovelace card so HACS users get it
+    # without copying files into config/www or adding dashboard resources.
+    await async_register_card(hass)
 
     # Options (set via the OptionsFlow) override the original setup data so
     # editable fields like OTP username/lifetime take effect on reload.

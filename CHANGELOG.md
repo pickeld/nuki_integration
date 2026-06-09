@@ -3,6 +3,19 @@
 All notable changes to the Nuki OTP Generator integration are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [2.5.0] - 2026-06-09
+
+### Added
+- **Bundled OTP Lovelace card (`ha-otp-card`), auto-registered on setup.** The
+  card — a one-time-password display with a live countdown ring, grouped
+  digits, tap-to-copy, reveal/hide, and a visual editor — now ships inside the
+  integration (`custom_components/nuki_otp/www/ha-otp-card.js`). On setup the
+  integration serves the file from a static URL and registers it as a frontend
+  module, so HACS users get the card automatically with no manual file copying
+  or dashboard-resource configuration. The card generates RFC 6238 TOTP codes
+  client-side (all 6 RFC 6238 reference vectors verified) and can also read a
+  code from an existing OTP sensor entity.
+
 ## [2.4.0] - 2026-06-09
 
 ### Fixed

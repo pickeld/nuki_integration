@@ -11,6 +11,29 @@ This custom integration for Home Assistant allows users to generate and manage O
 - Automatically delete expired or used OTPs.
 - Display current active OTP codes and their expiry times.
 - Integrate with Nuki Smart Lock API to manage access.
+- Bundled **OTP Lovelace card** (`ha-otp-card`) that is registered automatically — no manual file copying or dashboard resource setup required.
+
+## OTP Lovelace Card
+
+This integration ships a custom Lovelace card, **`ha-otp-card`**, that displays a
+one-time password with a live countdown ring, grouped digits, tap-to-copy, and
+reveal/hide controls. Because the card is bundled with the integration, it is
+served and registered as a frontend module automatically on setup — installing
+the integration through HACS makes the card available with no extra steps.
+
+Add it to a dashboard like any other card:
+
+```yaml
+type: custom:ha-otp-card
+entity: sensor.nuki_otp   # read the current code from the OTP sensor
+```
+
+The card can also generate RFC&nbsp;6238 TOTP codes entirely in the browser from
+a base32 secret (`secret:` option) when you are not reading from an entity. A
+visual editor is included, so you can also configure it from the dashboard UI.
+
+> If the card does not appear immediately after upgrading, do a hard refresh of
+> the browser (Ctrl/Cmd+Shift+R) to clear the cached frontend bundle.
 
 ## Installation
 
