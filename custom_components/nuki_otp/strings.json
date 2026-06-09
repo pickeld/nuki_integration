@@ -10,6 +10,23 @@
                     "nuki_name": "Nuki Name",
                     "otp_username": "OTP Username",
                     "otp_lifetime_hours": "OTP Lifetime (Hours)"
+                },
+                "data_description": {
+                    "api_url": "Base URL of the Nuki Web API. Leave the default unless you have been told to use a different endpoint.",
+                    "api_token": "Nuki Web API token generated from your Nuki account at web.nuki.io (Account → API).",
+                    "nuki_name": "Name of the smart lock exactly as it appears in your Nuki account. Used to find the device to manage OTP codes for.",
+                    "otp_username": "Name given to the temporary keypad code created by this integration. Helps you recognise it in the Nuki app.",
+                    "otp_lifetime_hours": "How long each generated OTP code stays valid, in hours (1–168). After this it expires and is removed."
+                }
+            },
+            "reauth_confirm": {
+                "title": "Reauthenticate Nuki OTP",
+                "description": "The API token for {nuki_name} was rejected. Enter a new Nuki Web API token to restore access.",
+                "data": {
+                    "api_token": "API Token"
+                },
+                "data_description": {
+                    "api_token": "Nuki Web API token generated from your Nuki account at web.nuki.io (Account → API)."
                 }
             }
         },
@@ -20,7 +37,24 @@
             "unknown": "Unexpected error occurred"
         },
         "abort": {
-            "already_configured": "This Nuki device is already configured"
+            "already_configured": "This Nuki device is already configured",
+            "reauth_successful": "Reauthentication was successful"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Nuki OTP Options",
+                "description": "Update editable settings. Saving reloads the integration with the new values.",
+                "data": {
+                    "otp_username": "OTP Username",
+                    "otp_lifetime_hours": "OTP Lifetime (Hours)"
+                },
+                "data_description": {
+                    "otp_username": "Name given to the temporary keypad code created by this integration. Helps you recognise it in the Nuki app.",
+                    "otp_lifetime_hours": "How long each generated OTP code stays valid, in hours (1–168). After this it expires and is removed."
+                }
+            }
         }
     }
 }

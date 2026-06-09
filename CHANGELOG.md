@@ -3,6 +3,25 @@
 All notable changes to the Nuki OTP Generator integration are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] - 2026-06-09
+
+### Added
+- **Reauthentication flow.** When the Nuki Web API rejects the configured token
+  (HTTP 401/403 — e.g. revoked or expired), Home Assistant now surfaces a reauth
+  prompt asking for a new token instead of only logging errors. Entering a valid
+  token restores operation without removing and re-adding the integration. The
+  coordinator raises `ConfigEntryAuthFailed` on auth failures so HA starts the
+  flow automatically.
+- **Options flow.** OTP username and OTP lifetime (hours) are now editable from
+  the integration's *Configure* dialog in the Home Assistant UI. Saving reloads
+  the config entry so the new values take effect immediately, without removing
+  and re-adding the integration. Connection fields (API URL/token, Nuki name)
+  remain set-at-install only, as changing them requires re-validation.
+- **Config form help text.** Each setup and options field now carries
+  `data_description` helper text explaining what it does (API URL/token, Nuki
+  name, OTP username, OTP lifetime). A test guards `strings.json` and
+  `translations/en.json` against drift and asserts every field stays documented.
+
 ## [2.1.0] - 2026-06-09
 
 First HACS release built from the restructured `custom_components/nuki_otp/`
