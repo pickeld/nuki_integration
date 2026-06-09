@@ -19,12 +19,11 @@ jobs:
         uses: "hacs/action@main"
         with:
           category: integration
-          # The nuki_otp brand is not yet registered in
-          # home-assistant/brands, so skip the brands check that would
-          # otherwise fail validation. Remove this `ignore` once the brand
-          # PR is merged (required before HACS default-store inclusion).
+          # No `ignore` here: the HACS brands check is satisfied locally by
+          # custom_components/nuki_otp/brand/icon.png (HA 2026.3+ custom-
+          # integration local brands). home-assistant/brands no longer accepts
+          # custom-integration icons, so there is no upstream brand to register.
           # See SUBMISSION.md.
-          ignore: brands
 
   validate-hassfest:
     name: Hassfest
