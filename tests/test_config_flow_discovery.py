@@ -25,19 +25,32 @@ import unittest
 from pathlib import Path
 
 
+def _ensure_module(name, parent=None, attr=None):
+    """Return sys.modules[name], creating (and linking to parent) if absent."""
+    mod = sys.modules.get(name)
+    if mod is None:
+        mod = types.ModuleType(name)
+        sys.modules[name] = mod
+    if parent is not None and attr is not None and getattr(parent, attr, None) is None:
+        setattr(parent, attr, mod)
+    return mod
+
+
 def _install_stub_modules():
-    """Register minimal HA / selector stubs before importing config_flow."""
+    """Idempotently register HA / selector stubs config_flow needs.
+
+    Written to be *additive* and order-independent: other test modules in this
+    suite (e.g. ``test_make_request_retry``) install an overlapping set of
+    homeassistant stubs, and Python shares ``sys.modules`` across them. So we
+    only fill in attributes that are missing rather than assuming a clean slate.
+    """
     import voluptuous as vol  # noqa: F401  (ensures dependency present)
 
-    if "homeassistant" not in sys.modules:
-        ha = types.ModuleType("homeassistant")
-        sys.modules["homeassistant"] = ha
-    else:
-        ha = sys.modules["homeassistant"]
+    ha = _ensure_module("homeassistant")
 
-    if "homeassistant.config_entries" not in sys.modules:
-        config_entries = types.ModuleType("homeassistant.config_entries")
-
+    # homeassistant.config_entries
+    config_entries = _ensure_module("homeassistant.config_entries", ha, "config_entries")
+    if not hasattr(config_entries, "ConfigFlow"):
         class ConfigFlow:
             def __init_subclass__(cls, **kwargs):  # accepts domain=...
                 super().__init_subclass__()
@@ -65,45 +78,34 @@ def _install_stub_modules():
         config_entries.ConfigFlow = ConfigFlow
         config_entries.OptionsFlow = OptionsFlow
         config_entries.ConfigEntry = ConfigEntry
-        sys.modules["homeassistant.config_entries"] = config_entries
-        ha.config_entries = config_entries
 
-    if "homeassistant.core" not in sys.modules:
-        core = types.ModuleType("homeassistant.core")
-
+    # homeassistant.core (may already exist from another test, without callback)
+    core = _ensure_module("homeassistant.core", ha, "core")
+    if not hasattr(core, "HomeAssistant"):
         class HomeAssistant:
             pass
 
+        core.HomeAssistant = HomeAssistant
+    if not hasattr(core, "callback"):
         def callback(func):
             return func
 
-        core.HomeAssistant = HomeAssistant
         core.callback = callback
-        sys.modules["homeassistant.core"] = core
-        ha.core = core
 
-    if "homeassistant.data_entry_flow" not in sys.modules:
-        def_mod = types.ModuleType("homeassistant.data_entry_flow")
+    # homeassistant.data_entry_flow
+    def_mod = _ensure_module("homeassistant.data_entry_flow", ha, "data_entry_flow")
+    if not hasattr(def_mod, "FlowResult"):
         def_mod.FlowResult = dict
-        sys.modules["homeassistant.data_entry_flow"] = def_mod
-        ha.data_entry_flow = def_mod
 
-    if "homeassistant.exceptions" not in sys.modules:
-        exc_mod = types.ModuleType("homeassistant.exceptions")
-
+    # homeassistant.exceptions
+    exc_mod = _ensure_module("homeassistant.exceptions", ha, "exceptions")
+    if not hasattr(exc_mod, "HomeAssistantError"):
         class HomeAssistantError(Exception):
             pass
 
         exc_mod.HomeAssistantError = HomeAssistantError
-        sys.modules["homeassistant.exceptions"] = exc_mod
-        ha.exceptions = exc_mod
 
-    if "homeassistant.helpers" not in sys.modules:
-        helpers_pkg = types.ModuleType("homeassistant.helpers")
-        sys.modules["homeassistant.helpers"] = helpers_pkg
-        ha.helpers = helpers_pkg
-    else:
-        helpers_pkg = sys.modules["homeassistant.helpers"]
+    helpers_pkg = _ensure_module("homeassistant.helpers", ha, "helpers")
 
     if "homeassistant.helpers.selector" not in sys.modules:
         selector = types.ModuleType("homeassistant.helpers.selector")
@@ -172,11 +174,20 @@ def _run(coro):
 class ConfigFlowDiscoveryTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        _install_stub_modules()
-
         repo_root = Path(__file__).resolve().parents[1]
         if str(repo_root) not in sys.path:
             sys.path.insert(0, str(repo_root))
+
+        # Import the retry harness FIRST: it installs the aiohttp / HA core /
+        # util.dt stubs that helpers.py needs and loads helpers.py by path.
+        # Our _install_stub_modules() then *additively* fills in the extra
+        # config-flow stubs (config_entries, selector, callback, …) without
+        # clobbering what the harness already set up — so the two test modules
+        # coexist regardless of import order.
+        from test_make_request_retry import helpers as _helpers  # noqa: F401
+        sys.modules.setdefault("nuki_otp_helpers", _helpers)
+
+        _install_stub_modules()
 
         if "nuki_otp_const" not in sys.modules:
             const = types.ModuleType("nuki_otp_const")
@@ -187,10 +198,6 @@ class ConfigFlowDiscoveryTest(unittest.TestCase):
             sys.modules["nuki_otp_const"] = const
 
         repo_component = repo_root / "custom_components" / "nuki_otp"
-
-        # Reuse the helpers harness (installs aiohttp/HA stubs + loads helpers).
-        from test_make_request_retry import helpers as _helpers  # noqa: F401
-        sys.modules.setdefault("nuki_otp_helpers", _helpers)
 
         pkg_name = "nuki_otp_pkg"
         if pkg_name not in sys.modules:
@@ -275,6 +282,7 @@ class ConfigFlowDiscoveryTest(unittest.TestCase):
         """End-to-end: connection step discovers, select step creates entry."""
         self._patch_list_smartlocks(result=[{"name": "Front Door"}])
         flow = self.cf.NukiConfigFlow()
+        flow.hass = None  # real HA injects this; not used once list is patched
 
         # Step 1: submit connection -> should advance to select_lock form.
         res1 = _run(flow.async_step_user(
@@ -297,6 +305,7 @@ class ConfigFlowDiscoveryTest(unittest.TestCase):
     def test_user_step_surfaces_no_smartlocks_error(self):
         self._patch_list_smartlocks(result=[])
         flow = self.cf.NukiConfigFlow()
+        flow.hass = None  # real HA injects this; not used once list is patched
         res = _run(flow.async_step_user(
             {"api_url": "https://api.nuki.io", "api_token": "tok"}
         ))
