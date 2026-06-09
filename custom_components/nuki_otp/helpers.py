@@ -143,16 +143,26 @@ class NukiAPIClient:
             _LOGGER.exception("Failed to get auth codes")
             return []
 
+    async def list_smartlocks(self) -> List[Dict]:
+        """Return every smartlock on the account (raw list).
+
+        Unlike :meth:`get_smartlock`, this does not swallow API errors: the
+        config flow needs to distinguish auth failures (bad token) from
+        connectivity problems and from "the account simply has no locks", so
+        it relies on ``NukiAuthError`` / ``NukiAPIError`` propagating.
+        """
+        locks = await self._make_request("GET", "smartlock")
+        # A 204 returns {} and the API may return a dict on error; only a list
+        # is iterable as smartlock records, so guard against anything else.
+        if not isinstance(locks, list):
+            _LOGGER.error("Unexpected smartlock response: %s", type(locks).__name__)
+            return []
+        return locks
+
     async def get_smartlock(self) -> Optional[Dict]:
-        """Get smartlock by name."""
+        """Get the configured smartlock by name."""
         try:
-            locks = await self._make_request("GET", "smartlock")
-            # A 204 returns {} and the API may return a dict on error; only a
-            # list is iterable as smartlock records, so guard against anything
-            # else.
-            if not isinstance(locks, list):
-                _LOGGER.error("Unexpected smartlock response: %s", type(locks).__name__)
-                return None
+            locks = await self.list_smartlocks()
             for lock in locks:
                 if lock.get("name") == self.config.nuki_name:
                     return lock

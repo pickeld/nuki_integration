@@ -3,6 +3,20 @@
 All notable changes to the Nuki OTP Generator integration are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [2.3.0] - 2026-06-09
+
+### Changed
+- **Smart lock is now discovered and picked from a list, not typed by hand.**
+  Setup previously asked you to type the lock's name *exactly* as it appears in
+  your Nuki account. A mismatch (e.g. typing "Home") failed validation with
+  *"Smartlock '<name>' not found"* and the integration could not be added. The
+  config flow is now two steps: step 1 takes the API URL + token and validates
+  the token, then step 2 shows a dropdown of the smart locks actually found on
+  the account so you simply select one. Mistyped or non-existent lock names are
+  no longer possible. If the token is valid but the account exposes no locks, a
+  clear `no_smartlocks` error is shown instead of a generic failure. Added a
+  regression test covering discovery, lock selection, and the no-locks case.
+
 ## [2.2.1] - 2026-06-09
 
 ### Fixed
