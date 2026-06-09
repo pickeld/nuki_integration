@@ -61,8 +61,18 @@ class NukiAPIClient:
         json_data: Optional[Union[Dict, List]] = None,
         retries: int = MAX_RETRIES,
     ):
-        """Make HTTP request with retry logic."""
+        """Make HTTP request with retry logic.
+
+        Only idempotent GET requests are retried. A create-side call (PUT/
+        POST/DELETE) that times out may already have been processed by the
+        Nuki server, so retrying it could create a duplicate OTP code on the
+        lock. Such calls are attempted exactly once and the error propagates.
+        """
         url = f"{self.config.api_url}/{endpoint}"
+
+        # Non-idempotent methods must not be retried (duplicate-OTP risk).
+        if method.upper() != "GET":
+            retries = 0
 
         for attempt in range(retries + 1):
             try:
