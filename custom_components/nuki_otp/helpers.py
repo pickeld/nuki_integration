@@ -33,6 +33,15 @@ class NukiAPIError(Exception):
     """Custom exception for Nuki API errors."""
 
 
+class NukiAuthError(NukiAPIError):
+    """Raised when the Nuki API rejects our credentials (HTTP 401/403).
+
+    Subclasses NukiAPIError so existing ``except NukiAPIError`` handlers still
+    catch it, but lets callers that care about authentication (the coordinator)
+    single it out and trigger a reauth flow.
+    """
+
+
 class NukiAPIClient:
     """Nuki API client with proper error handling and async support."""
 
@@ -85,6 +94,13 @@ class NukiAPIClient:
                     if response.status == 204:
                         return {}
                     error_text = await response.text()
+                    # A revoked/expired token surfaces as 401/403. Raise a
+                    # dedicated error so the coordinator can trigger reauth
+                    # instead of treating it as a transient failure.
+                    if response.status in (401, 403):
+                        raise NukiAuthError(
+                            f"API authentication failed: {response.status}"
+                        )
                     raise NukiAPIError(
                         f"API request failed: {response.status} - {error_text}"
                     )
@@ -120,6 +136,9 @@ class NukiAPIClient:
                 auth for auth in results
                 if auth.get("name", "").startswith(prefix)
             ]
+        except NukiAuthError:
+            # Let auth failures bubble up so the coordinator can reauth.
+            raise
         except NukiAPIError:
             _LOGGER.exception("Failed to get auth codes")
             return []
@@ -139,6 +158,9 @@ class NukiAPIClient:
                     return lock
             _LOGGER.error("Smartlock '%s' not found", self.config.nuki_name)
             return None
+        except NukiAuthError:
+            # Let auth failures bubble up so the coordinator can reauth.
+            raise
         except NukiAPIError:
             _LOGGER.exception("Failed to get smartlock")
             return None
@@ -293,5 +315,8 @@ class NukiAPIClient:
             if to_delete:
                 await self.delete_auth_codes(to_delete)
 
+        except NukiAuthError:
+            # Let auth failures bubble up so the coordinator can reauth.
+            raise
         except Exception:
             _LOGGER.exception("Error during cleanup")

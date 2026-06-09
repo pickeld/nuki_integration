@@ -25,19 +25,32 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Nuki OTP from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
+    # Options (set via the OptionsFlow) override the original setup data so
+    # editable fields like OTP username/lifetime take effect on reload.
+    otp_username = entry.options.get(
+        "otp_username", entry.data.get("otp_username", DEFAULT_OTP_USERNAME)
+    )
+    otp_lifetime_hours = entry.options.get(
+        "otp_lifetime_hours",
+        entry.data.get("otp_lifetime_hours", DEFAULT_OTP_LIFETIME_HOURS),
+    )
+
     config = NukiConfig(
         api_token=entry.data["api_token"],
         api_url=entry.data["api_url"],
-        otp_username=entry.data.get("otp_username", DEFAULT_OTP_USERNAME),
+        otp_username=otp_username,
         nuki_name=entry.data["nuki_name"],
-        otp_lifetime_hours=int(
-            entry.data.get("otp_lifetime_hours", DEFAULT_OTP_LIFETIME_HOURS)
-        ),
+        otp_lifetime_hours=int(otp_lifetime_hours),
     )
 
     api_client = NukiAPIClient(hass, config)
-    coordinator = NukiOTPDataCoordinator(hass, api_client)
+    coordinator = NukiOTPDataCoordinator(hass, api_client, entry)
     await coordinator.async_config_entry_first_refresh()
+
+    # Expired/used code cleanup runs on its own schedule, separate from the
+    # read poll, so deletion never blocks or fails the data refresh. Register
+    # the unsubscribe so the interval is cancelled when the entry unloads.
+    entry.async_on_unload(coordinator.async_start_cleanup())
 
     hass.data[DOMAIN][entry.entry_id] = {
         "coordinator": coordinator,
