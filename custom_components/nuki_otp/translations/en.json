@@ -32,6 +32,7 @@
         },
         "error": {
             "cannot_connect": "Failed to connect to Nuki API",
+            "invalid_url": "The API URL must be a valid http(s) URL",
             "invalid_auth": "Invalid API token",
             "nuki_not_found": "Specified Nuki device not found",
             "unknown": "Unexpected error occurred"
