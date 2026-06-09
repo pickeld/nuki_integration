@@ -101,6 +101,10 @@ class NukiAPIClient:
             # Nuki Web API filters auth types via the plural "types" query
             # param (comma-separated). 13 = keypad code.
             results = await self._make_request("GET", "smartlock/auth?types=13")
+            # A 204 returns {} and the API may return a dict on error; only a
+            # list is iterable as auth records, so guard against anything else.
+            if not isinstance(results, list):
+                return []
             prefix = self.config.otp_username
             return [
                 auth for auth in results
@@ -114,6 +118,12 @@ class NukiAPIClient:
         """Get smartlock by name."""
         try:
             locks = await self._make_request("GET", "smartlock")
+            # A 204 returns {} and the API may return a dict on error; only a
+            # list is iterable as smartlock records, so guard against anything
+            # else.
+            if not isinstance(locks, list):
+                _LOGGER.error("Unexpected smartlock response: %s", type(locks).__name__)
+                return None
             for lock in locks:
                 if lock.get("name") == self.config.nuki_name:
                     return lock
