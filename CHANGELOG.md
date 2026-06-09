@@ -3,16 +3,22 @@
 All notable changes to the Nuki OTP Generator integration are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.5.1] - 2026-06-09
+
+### Added
+- **Local brand assets** at `custom_components/nuki_otp/brand/` (`icon.png`
+  256×256, `icon@2x.png` 512×512). As of Home Assistant 2026.3, custom
+  integrations ship their own brand images and `home-assistant/brands` no
+  longer accepts custom-integration icons. HACS's brands validator looks for
+  `custom_components/<domain>/brand/icon.png`, so shipping it here makes the
+  HACS Action pass the brands check with no `ignore`.
 
 ### Changed
-- **CI now validates on releases too.** The `Validate` workflow (HACS Action +
-  hassfest) already ran on push and pull requests; it now also runs on
-  published releases, so every release is checked the same way HACS validates
-  it. Added `SUBMISSION.md` with the step-by-step checklist for getting the
-  integration into the HACS default store (brand registration + the
-  `hacs/default` PR), both of which must be opened from the repo owner's
-  GitHub account.
+- **CI now validates on releases too** and **no longer ignores the brands
+  check.** The `Validate` workflow (HACS Action + hassfest) already ran on push
+  and pull requests; it now also runs on published releases. The `ignore:
+  brands` key was removed now that brand assets are provided locally. Added
+  `SUBMISSION.md` documenting the HACS default-store submission.
 
 ## [2.5.0] - 2026-06-09
 
