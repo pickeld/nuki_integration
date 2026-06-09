@@ -103,6 +103,10 @@ class NukiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors=self._errors,
             )
 
+        # Clear any errors from a prior submission so corrected input
+        # doesn't keep showing the old error.
+        self._errors = {}
+
         try:
             info = await validate_input(self.hass, user_input)
         except CannotConnect:
