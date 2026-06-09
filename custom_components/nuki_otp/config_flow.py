@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 import voluptuous as vol
 
@@ -10,6 +11,7 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import selector
 
 from .const import (
     DOMAIN,
@@ -22,8 +24,14 @@ from .helpers import NukiAPIClient, NukiConfig, NukiAPIError, NukiAuthError
 _LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema({
-    vol.Required("api_url", default=DEFAULT_API_URL): vol.All(
-        str, vol.Length(min=1), vol.Url()
+    # NB: the URL format is validated server-side in validate_input(), not via
+    # vol.Url() in the schema. voluptuous_serialize (used by HA to send the
+    # form to the frontend) cannot serialize vol.Url and raises
+    # "Unable to convert schema", which surfaces as a 500 when the config flow
+    # form loads. A URL TextSelector renders a proper URL field and serializes
+    # cleanly.
+    vol.Required("api_url", default=DEFAULT_API_URL): selector.TextSelector(
+        selector.TextSelectorConfig(type=selector.TextSelectorType.URL)
     ),
     vol.Required("api_token"): vol.All(str, vol.Length(min=1)),
     vol.Required("nuki_name"): vol.All(str, vol.Length(min=1)),
@@ -54,8 +62,26 @@ class NukiNotFound(HomeAssistantError):
     """Error to indicate the specified Nuki device was not found."""
 
 
+class InvalidUrl(HomeAssistantError):
+    """Error to indicate the API URL is not a valid http(s) URL."""
+
+
+def _validate_api_url(value: str) -> str:
+    """Validate the API URL has an http(s) scheme and a host.
+
+    Done server-side rather than with vol.Url() in the schema because the
+    latter cannot be serialized to the frontend (see STEP_USER_DATA_SCHEMA).
+    """
+    parsed = urlparse((value or "").strip())
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise InvalidUrl(f"Invalid API URL: {value!r}")
+    return value
+
+
 async def validate_input(hass: HomeAssistant, data: Dict[str, Any]) -> Dict[str, Any]:
     """Validate the user input allows us to connect."""
+    _validate_api_url(data["api_url"])
+
     config = NukiConfig(
         api_token=data["api_token"],
         api_url=data["api_url"],
@@ -125,6 +151,8 @@ class NukiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         try:
             info = await validate_input(self.hass, user_input)
+        except InvalidUrl:
+            self._errors["api_url"] = "invalid_url"
         except CannotConnect:
             self._errors["base"] = "cannot_connect"
         except InvalidAuth:

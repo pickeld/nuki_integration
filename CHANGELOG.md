@@ -3,6 +3,18 @@
 All notable changes to the Nuki OTP Generator integration are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [2.2.1] - 2026-06-09
+
+### Fixed
+- **Config flow no longer 500s when opened.** Adding the integration failed with
+  *"Config flow could not be loaded: 500 Internal Server Error"*. The setup form
+  validated the API URL with `voluptuous.Url()`, which Home Assistant cannot
+  serialize to the frontend (`voluptuous_serialize` raised
+  `Unable to convert schema: <function Url>`), so the form never rendered. The
+  API URL field now uses a URL text selector and the URL format is validated
+  server-side, surfacing an `invalid_url` error on the field for bad input. A
+  regression test asserts the user-step schema contains no `vol.Url`.
+
 ## [2.2.0] - 2026-06-09
 
 ### Added
