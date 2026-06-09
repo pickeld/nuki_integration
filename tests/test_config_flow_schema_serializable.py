@@ -37,10 +37,24 @@ def _install_stub_modules():
     else:
         ha = sys.modules["homeassistant"]
 
-    # homeassistant.config_entries
-    if "homeassistant.config_entries" not in sys.modules:
-        config_entries = types.ModuleType("homeassistant.config_entries")
+    # The stubs below are filled in *additively*: another test module
+    # (test_make_request_retry) may have already created some of these
+    # homeassistant submodules with a different subset of attributes, and
+    # Python shares sys.modules. So we check for the specific attribute, not
+    # just module presence, or symbols like ``callback`` go missing.
+    def _submod(name, attr):
+        full = "homeassistant." + name
+        mod = sys.modules.get(full)
+        if mod is None:
+            mod = types.ModuleType(full)
+            sys.modules[full] = mod
+        if getattr(ha, attr, None) is None:
+            setattr(ha, attr, mod)
+        return mod
 
+    # homeassistant.config_entries
+    config_entries = _submod("config_entries", "config_entries")
+    if not hasattr(config_entries, "ConfigFlow"):
         class ConfigFlow:
             def __init_subclass__(cls, **kwargs):  # accepts domain=...
                 super().__init_subclass__()
@@ -54,41 +68,32 @@ def _install_stub_modules():
         config_entries.ConfigFlow = ConfigFlow
         config_entries.OptionsFlow = OptionsFlow
         config_entries.ConfigEntry = ConfigEntry
-        sys.modules["homeassistant.config_entries"] = config_entries
-        ha.config_entries = config_entries
 
     # homeassistant.core
-    if "homeassistant.core" not in sys.modules:
-        core = types.ModuleType("homeassistant.core")
-
+    core = _submod("core", "core")
+    if not hasattr(core, "HomeAssistant"):
         class HomeAssistant:
             pass
 
+        core.HomeAssistant = HomeAssistant
+    if not hasattr(core, "callback"):
         def callback(func):
             return func
 
-        core.HomeAssistant = HomeAssistant
         core.callback = callback
-        sys.modules["homeassistant.core"] = core
-        ha.core = core
 
     # homeassistant.data_entry_flow
-    if "homeassistant.data_entry_flow" not in sys.modules:
-        def_mod = types.ModuleType("homeassistant.data_entry_flow")
+    def_mod = _submod("data_entry_flow", "data_entry_flow")
+    if not hasattr(def_mod, "FlowResult"):
         def_mod.FlowResult = dict
-        sys.modules["homeassistant.data_entry_flow"] = def_mod
-        ha.data_entry_flow = def_mod
 
     # homeassistant.exceptions
-    if "homeassistant.exceptions" not in sys.modules:
-        exc_mod = types.ModuleType("homeassistant.exceptions")
-
+    exc_mod = _submod("exceptions", "exceptions")
+    if not hasattr(exc_mod, "HomeAssistantError"):
         class HomeAssistantError(Exception):
             pass
 
         exc_mod.HomeAssistantError = HomeAssistantError
-        sys.modules["homeassistant.exceptions"] = exc_mod
-        ha.exceptions = exc_mod
 
     # homeassistant.helpers + homeassistant.helpers.selector
     if "homeassistant.helpers" not in sys.modules:
@@ -140,11 +145,25 @@ except ImportError:  # pragma: no cover - environment without voluptuous
 class ConfigFlowSchemaSerializableTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        _install_stub_modules()
-
         repo_root = Path(__file__).resolve().parents[1]
         if str(repo_root) not in sys.path:
             sys.path.insert(0, str(repo_root))
+
+        # Load helpers.py (config_flow imports NukiAPIClient etc. from it).
+        # Import the retry harness FIRST so its aiohttp / HA core / util.dt
+        # stubs are installed on a clean slate; otherwise _install_stub_modules
+        # creates ``homeassistant.helpers`` as a non-package and helpers.py's
+        # ``from homeassistant.helpers.aiohttp_client import …`` fails. (This
+        # ordering bug was invisible while voluptuous was absent and the whole
+        # class self-skipped.)
+        from test_make_request_retry import helpers as _helpers  # noqa: F401
+        sys.modules.setdefault("nuki_otp_helpers", _helpers)
+
+        _install_stub_modules()
+
+        import importlib.util
+
+        repo_component = repo_root / "custom_components" / "nuki_otp"
 
         # Stub the sibling modules config_flow imports so we don't drag in the
         # whole package __init__ / coordinator.
@@ -155,16 +174,6 @@ class ConfigFlowSchemaSerializableTest(unittest.TestCase):
             const.DEFAULT_OTP_USERNAME = "OTP"
             const.DEFAULT_OTP_LIFETIME_HOURS = 12
             sys.modules["nuki_otp_const"] = const
-
-        import importlib.util
-
-        repo_component = repo_root / "custom_components" / "nuki_otp"
-
-        # Load helpers.py (config_flow imports NukiAPIClient etc. from it).
-        # It only needs the aiohttp/HA stubs already used by the retry tests;
-        # import that test module to install them, reusing its harness.
-        from test_make_request_retry import helpers as _helpers  # noqa: F401
-        sys.modules.setdefault("nuki_otp_helpers", _helpers)
 
         # config_flow.py does ``from .const import ...`` and
         # ``from .helpers import ...``; rewrite those by loading it as a module
