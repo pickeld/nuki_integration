@@ -23,25 +23,47 @@ from .helpers import NukiAPIClient, NukiConfig, NukiAPIError, NukiAuthError
 
 _LOGGER = logging.getLogger(__name__)
 
+# Step 1 (connection): collect the API URL + token only. We validate the token
+# here and then *discover* the account's smartlocks, so the user never has to
+# type the lock name by hand (a mistyped name was the cause of the
+# "Smartlock '<name>' not found" setup failure).
+#
+# NB: the URL format is validated server-side in _validate_api_url(), not via
+# vol.Url() in the schema. voluptuous_serialize (used by HA to send the form to
+# the frontend) cannot serialize vol.Url and raises "Unable to convert schema",
+# which surfaces as a 500 when the config flow form loads. A URL TextSelector
+# renders a proper URL field and serializes cleanly.
 STEP_USER_DATA_SCHEMA = vol.Schema({
-    # NB: the URL format is validated server-side in validate_input(), not via
-    # vol.Url() in the schema. voluptuous_serialize (used by HA to send the
-    # form to the frontend) cannot serialize vol.Url and raises
-    # "Unable to convert schema", which surfaces as a 500 when the config flow
-    # form loads. A URL TextSelector renders a proper URL field and serializes
-    # cleanly.
     vol.Required("api_url", default=DEFAULT_API_URL): selector.TextSelector(
         selector.TextSelectorConfig(type=selector.TextSelectorType.URL)
     ),
     vol.Required("api_token"): vol.All(str, vol.Length(min=1)),
-    vol.Required("nuki_name"): vol.All(str, vol.Length(min=1)),
-    vol.Optional("otp_username", default=DEFAULT_OTP_USERNAME): vol.All(
-        str, vol.Length(min=1)
-    ),
-    vol.Optional("otp_lifetime_hours", default=DEFAULT_OTP_LIFETIME_HOURS): vol.All(
-        int, vol.Range(min=1, max=168)  # 1 hour to 1 week
-    ),
 })
+
+
+def _build_lock_step_schema(lock_names: list[str]) -> vol.Schema:
+    """Build the lock-selection schema from the discovered lock names.
+
+    ``nuki_name`` renders as a dropdown of the locks actually present on the
+    account, so an invalid name is impossible.
+    """
+    return vol.Schema({
+        vol.Required("nuki_name"): selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=[
+                    selector.SelectOptionDict(value=name, label=name)
+                    for name in lock_names
+                ],
+                mode=selector.SelectSelectorMode.DROPDOWN,
+            )
+        ),
+        vol.Optional("otp_username", default=DEFAULT_OTP_USERNAME): vol.All(
+            str, vol.Length(min=1)
+        ),
+        vol.Optional(
+            "otp_lifetime_hours", default=DEFAULT_OTP_LIFETIME_HOURS
+        ): vol.All(int, vol.Range(min=1, max=168)),  # 1 hour to 1 week
+    })
 
 # Reauth only collects a fresh token; the rest of the connection config
 # (URL, Nuki name) is reused from the existing entry.
@@ -78,36 +100,80 @@ def _validate_api_url(value: str) -> str:
     return value
 
 
-async def validate_input(hass: HomeAssistant, data: Dict[str, Any]) -> Dict[str, Any]:
-    """Validate the user input allows us to connect."""
-    _validate_api_url(data["api_url"])
+def _client_for(hass: HomeAssistant, data: Dict[str, Any]) -> NukiAPIClient:
+    """Build an API client from (partial) flow data.
 
+    Only ``api_url``/``api_token`` are required for connection tests;
+    ``nuki_name``/OTP fields default when absent so the client is usable during
+    the connection step before a lock has been chosen.
+    """
     config = NukiConfig(
         api_token=data["api_token"],
         api_url=data["api_url"],
         otp_username=data.get("otp_username", DEFAULT_OTP_USERNAME),
-        nuki_name=data["nuki_name"],
+        nuki_name=data.get("nuki_name", ""),
         otp_lifetime_hours=data.get("otp_lifetime_hours", DEFAULT_OTP_LIFETIME_HOURS),
     )
-    
-    api_client = NukiAPIClient(hass, config)
-    
+    return NukiAPIClient(hass, config)
+
+
+async def discover_smartlocks(
+    hass: HomeAssistant, data: Dict[str, Any]
+) -> list[Dict[str, Any]]:
+    """Validate the connection and return the account's smartlocks.
+
+    Raises ``InvalidUrl`` for a malformed URL, ``InvalidAuth`` for a rejected
+    token, ``CannotConnect`` for connectivity errors, and ``NukiNotFound`` when
+    the account has no locks at all.
+    """
+    _validate_api_url(data["api_url"])
+
+    api_client = _client_for(hass, data)
+
+    try:
+        locks = await api_client.list_smartlocks()
+    except NukiAuthError as err:
+        raise InvalidAuth("Invalid API token") from err
+    except NukiAPIError as err:
+        raise CannotConnect(f"Cannot connect to Nuki API: {err}") from err
+    except Exception as err:
+        _LOGGER.exception("Unexpected error during validation")
+        raise CannotConnect(f"Unexpected error: {err}") from err
+
+    if not locks:
+        # Token is valid but the account exposes no smartlocks to manage.
+        raise NukiNotFound("No smartlocks found on this Nuki account")
+
+    return locks
+
+
+async def validate_input(hass: HomeAssistant, data: Dict[str, Any]) -> Dict[str, Any]:
+    """Validate the chosen lock allows us to connect (used by reauth).
+
+    The user flow uses :func:`discover_smartlocks` then a lock-picker, so by
+    the time this runs ``nuki_name`` is a name we discovered. Reauth reuses the
+    stored connection config and re-checks that the named lock is reachable.
+    """
+    _validate_api_url(data["api_url"])
+
+    api_client = _client_for(hass, data)
+
     try:
         # Test API connection by getting smartlocks
         smartlock = await api_client.get_smartlock()
         if not smartlock:
             raise NukiNotFound("Specified Nuki device not found")
-            
+
         # Test auth codes endpoint
         await api_client.get_auth_codes()
-        
+
     except NukiAuthError as err:
         raise InvalidAuth("Invalid API token") from err
     except NukiAPIError as err:
-        raise CannotConnect(f"Cannot connect to Nuki API: {err}")
+        raise CannotConnect(f"Cannot connect to Nuki API: {err}") from err
     except Exception as err:
         _LOGGER.exception("Unexpected error during validation")
-        raise CannotConnect(f"Unexpected error: {err}")
+        raise CannotConnect(f"Unexpected error: {err}") from err
 
     return {
         "title": f"Nuki OTP - {data['nuki_name']}",
@@ -125,6 +191,10 @@ class NukiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._errors: Dict[str, str] = {}
         # Entry being reauthenticated, set when async_step_reauth runs.
         self._reauth_entry: Optional[config_entries.ConfigEntry] = None
+        # Connection data + discovered locks carried from the connection step
+        # into the lock-selection step.
+        self._connection: Dict[str, Any] = {}
+        self._lock_names: list[str] = []
 
     @staticmethod
     @callback
@@ -137,7 +207,7 @@ class NukiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: Optional[Dict[str, Any]] = None
     ) -> FlowResult:
-        """Handle the initial step."""
+        """Step 1: collect + validate the connection, then discover locks."""
         if user_input is None:
             return self.async_show_form(
                 step_id="user",
@@ -150,7 +220,7 @@ class NukiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._errors = {}
 
         try:
-            info = await validate_input(self.hass, user_input)
+            locks = await discover_smartlocks(self.hass, user_input)
         except InvalidUrl:
             self._errors["api_url"] = "invalid_url"
         except CannotConnect:
@@ -158,21 +228,47 @@ class NukiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         except InvalidAuth:
             self._errors["base"] = "invalid_auth"
         except NukiNotFound:
-            self._errors["nuki_name"] = "nuki_not_found"
+            self._errors["base"] = "no_smartlocks"
         except Exception:  # pylint: disable=broad-except
             _LOGGER.exception("Unexpected exception")
             self._errors["base"] = "unknown"
         else:
-            await self.async_set_unique_id(
-                f"{DOMAIN}_{user_input['nuki_name'].lower().replace(' ', '_')}"
-            )
-            self._abort_if_unique_id_configured()
-            return self.async_create_entry(title=info["title"], data=user_input)
+            # Stash the connection and discovered names for the lock step.
+            self._connection = dict(user_input)
+            self._lock_names = [
+                name for lock in locks if (name := lock.get("name"))
+            ]
+            return await self.async_step_select_lock()
 
         return self.async_show_form(
             step_id="user",
             data_schema=STEP_USER_DATA_SCHEMA,
             errors=self._errors,
+        )
+
+    async def async_step_select_lock(
+        self, user_input: Optional[Dict[str, Any]] = None
+    ) -> FlowResult:
+        """Step 2: pick the lock to manage from the discovered list."""
+        schema = _build_lock_step_schema(self._lock_names)
+
+        if user_input is None:
+            return self.async_show_form(
+                step_id="select_lock",
+                data_schema=schema,
+                errors=self._errors,
+            )
+
+        self._errors = {}
+        # Merge the connection data with the lock selection + OTP options.
+        data = {**self._connection, **user_input}
+
+        await self.async_set_unique_id(
+            f"{DOMAIN}_{data['nuki_name'].lower().replace(' ', '_')}"
+        )
+        self._abort_if_unique_id_configured()
+        return self.async_create_entry(
+            title=f"Nuki OTP - {data['nuki_name']}", data=data
         )
 
     async def async_step_reauth(

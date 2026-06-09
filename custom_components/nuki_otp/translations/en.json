@@ -3,18 +3,26 @@
         "step": {
             "user": {
                 "title": "Connect to Nuki OTP",
-                "description": "Set up your Nuki OTP integration",
+                "description": "Enter your Nuki Web API connection details. The next step lets you pick which smart lock to manage.",
                 "data": {
                     "api_url": "API URL",
-                    "api_token": "API Token",
-                    "nuki_name": "Nuki Name",
+                    "api_token": "API Token"
+                },
+                "data_description": {
+                    "api_url": "Base URL of the Nuki Web API. Leave the default unless you have been told to use a different endpoint.",
+                    "api_token": "Nuki Web API token generated from your Nuki account at web.nuki.io (Account → API)."
+                }
+            },
+            "select_lock": {
+                "title": "Choose your Nuki smart lock",
+                "description": "Pick the smart lock to manage OTP codes for, and set how the codes are named and how long they last.",
+                "data": {
+                    "nuki_name": "Smart lock",
                     "otp_username": "OTP Username",
                     "otp_lifetime_hours": "OTP Lifetime (Hours)"
                 },
                 "data_description": {
-                    "api_url": "Base URL of the Nuki Web API. Leave the default unless you have been told to use a different endpoint.",
-                    "api_token": "Nuki Web API token generated from your Nuki account at web.nuki.io (Account → API).",
-                    "nuki_name": "Name of the smart lock exactly as it appears in your Nuki account. Used to find the device to manage OTP codes for.",
+                    "nuki_name": "The smart lock to manage, discovered from your Nuki account.",
                     "otp_username": "Name given to the temporary keypad code created by this integration. Helps you recognise it in the Nuki app.",
                     "otp_lifetime_hours": "How long each generated OTP code stays valid, in hours (1–168). After this it expires and is removed."
                 }
@@ -35,6 +43,7 @@
             "invalid_url": "The API URL must be a valid http(s) URL",
             "invalid_auth": "Invalid API token",
             "nuki_not_found": "Specified Nuki device not found",
+            "no_smartlocks": "No smart locks were found on this Nuki account",
             "unknown": "Unexpected error occurred"
         },
         "abort": {
