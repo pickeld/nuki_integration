@@ -3,6 +3,21 @@
 All notable changes to the Nuki OTP Generator integration are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [2.4.0] - 2026-06-09
+
+### Fixed
+- **The OTP switch no longer flickers off-then-on when you turn it on.**
+  Generating a one-time code is a multi-second round trip to the Nuki cloud.
+  The switch's real state comes from the integration's periodic poll, so when
+  you pressed it the toggle would briefly snap back to *off* (no code existed
+  yet) and only jump to *on* a few seconds later once the code was created and
+  the next refresh landed. The switch now assumes the requested state
+  immediately (optimistic state) and clears that assumption as soon as the
+  poll confirms it, so the toggle moves once and stays put. If generation
+  fails, the switch reverts to its real state instead of getting stuck on.
+  Added regression tests covering the turn-on/turn-off optimistic transitions
+  and the failure-revert path.
+
 ## [2.3.0] - 2026-06-09
 
 ### Changed
