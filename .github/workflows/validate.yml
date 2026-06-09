@@ -16,6 +16,10 @@ jobs:
         uses: "hacs/action@main"
         with:
           category: integration
+          # This is a personal integration that is not registered in
+          # home-assistant/brands, so skip the brands check that would
+          # otherwise fail validation.
+          ignore: brands
 
   validate-hassfest:
     runs-on: "ubuntu-latest"

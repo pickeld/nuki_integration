@@ -39,6 +39,26 @@ jobs:
           git tag -a "v${{ steps.version.outputs.version }}" -m "Version ${{ steps.version.outputs.version }}"
           git push origin "v${{ steps.version.outputs.version }}"
 
+      - name: Extract release notes from CHANGELOG
+        id: notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # Pull the section for this version out of CHANGELOG.md
+          # (everything between "## [VERSION]" and the next "## " heading).
+          NOTES=$(awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" {grab=1; next}
+            grab && /^## / {exit}
+            grab {print}
+          ' CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            NOTES="Version $VERSION. See CHANGELOG.md for details."
+          fi
+          {
+            echo "body<<EOF"
+            echo "$NOTES"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
       - name: Check if release exists
         id: check_release
         run: |
@@ -56,11 +76,7 @@ jobs:
         with:
           name: "v${{ steps.version.outputs.version }}"
           tag_name: "v${{ steps.version.outputs.version }}"
-          body: |
-            Version ${{ steps.version.outputs.version }}
-            
-            This release was automatically created based on the version in manifest.json.
-            Please update this description with the actual changes.
+          body: ${{ steps.notes.outputs.body }}
           draft: false
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
