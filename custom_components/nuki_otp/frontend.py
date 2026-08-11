@@ -11,12 +11,12 @@ when several config entries are set up.
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant
+from homeassistant.loader import IntegrationNotFound, async_get_integration
 
 from .const import CARD_FILENAME, CARD_URL_PATH, DOMAIN
 
@@ -26,14 +26,19 @@ _LOGGER = logging.getLogger(__name__)
 _REGISTERED_KEY = f"{DOMAIN}_frontend_registered"
 
 
-def _integration_version() -> str:
-    """Read the integration version from its manifest (for cache busting)."""
-    manifest = os.path.join(os.path.dirname(__file__), "manifest.json")
+async def _integration_version(hass: HomeAssistant) -> str:
+    """Return the integration version (for cache busting).
+
+    Home Assistant parses each integration's ``manifest.json`` at startup and
+    caches it on the loader, so the version is read from that cache rather than
+    opening the file ourselves. The previous ``open()`` ran inside the event
+    loop during setup and was flagged by HA's async loop protection.
+    """
     try:
-        with open(manifest, encoding="utf-8") as fh:
-            return str(json.load(fh).get("version", "0"))
-    except (OSError, ValueError):
+        integration = await async_get_integration(hass, DOMAIN)
+    except IntegrationNotFound:
         return "0"
+    return str(integration.version or "0")
 
 
 async def async_register_card(hass: HomeAssistant) -> None:
@@ -57,7 +62,7 @@ async def async_register_card(hass: HomeAssistant) -> None:
     # Add the card to the frontend's extra module URLs so its custom element is
     # loaded on every dashboard. The version query string busts the browser
     # cache whenever the bundled card changes.
-    versioned_url = f"{CARD_URL_PATH}?v={_integration_version()}"
+    versioned_url = f"{CARD_URL_PATH}?v={await _integration_version(hass)}"
     try:
         from homeassistant.components.frontend import add_extra_js_url
 

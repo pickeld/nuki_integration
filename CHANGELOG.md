@@ -3,6 +3,17 @@
 All notable changes to the Nuki OTP Generator integration are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [2.5.2] - 2026-08-11
+
+### Fixed
+- **Setup no longer blocks the event loop.** Home Assistant's async loop
+  protection flagged a blocking `open()` call: while registering the bundled
+  Lovelace card in `async_setup_entry`, the integration read its own
+  `manifest.json` to version-stamp the card URL (for cache busting). The
+  version is now read from Home Assistant's loader cache via
+  `async_get_integration`, which HA already populates at startup, so setup
+  performs no file I/O on the event loop.
+
 ## [2.5.1] - 2026-06-09
 
 ### Added
