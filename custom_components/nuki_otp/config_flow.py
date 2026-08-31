@@ -18,6 +18,8 @@ from .const import (
     DEFAULT_API_URL,
     DEFAULT_OTP_USERNAME,
     DEFAULT_OTP_LIFETIME_HOURS,
+    MIN_OTP_LIFETIME_HOURS,
+    MAX_OTP_LIFETIME_HOURS,
 )
 from .helpers import NukiAPIClient, NukiConfig, NukiAPIError, NukiAuthError
 
@@ -62,7 +64,10 @@ def _build_lock_step_schema(lock_names: list[str]) -> vol.Schema:
         ),
         vol.Optional(
             "otp_lifetime_hours", default=DEFAULT_OTP_LIFETIME_HOURS
-        ): vol.All(int, vol.Range(min=1, max=168)),  # 1 hour to 1 week
+        ): vol.All(
+            int,
+            vol.Range(min=MIN_OTP_LIFETIME_HOURS, max=MAX_OTP_LIFETIME_HOURS),
+        ),  # 1 hour to 1 year
     })
 
 # Reauth only collects a fresh token; the rest of the connection config
@@ -339,8 +344,14 @@ class NukiOptionsFlow(config_entries.OptionsFlow):
     """
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
+        """Initialize options flow.
+
+        Note: do NOT assign ``self.config_entry`` here. Modern Home Assistant
+        (2024.11+) makes ``OptionsFlow.config_entry`` a read-only property that
+        is set automatically from the handler, so assigning it raises
+        ``AttributeError: property 'config_entry' ... has no setter`` and the
+        options flow 500s. The base class already exposes the entry.
+        """
 
     def _current(self, key: str, default: Any) -> Any:
         """Return the current value, preferring options over original data."""
@@ -365,7 +376,10 @@ class NukiOptionsFlow(config_entries.OptionsFlow):
                 default=self._current(
                     "otp_lifetime_hours", DEFAULT_OTP_LIFETIME_HOURS
                 ),
-            ): vol.All(int, vol.Range(min=1, max=168)),  # 1 hour to 1 week
+            ): vol.All(
+                int,
+                vol.Range(min=MIN_OTP_LIFETIME_HOURS, max=MAX_OTP_LIFETIME_HOURS),
+            ),  # 1 hour to 1 year
         })
 
         return self.async_show_form(step_id="init", data_schema=options_schema)

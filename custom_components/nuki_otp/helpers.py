@@ -262,12 +262,24 @@ class NukiAPIClient:
         code_str = "".join(secrets.choice("123456789") for _ in range(length))
         return int(code_str)
 
+    # Backdate the allowedFromDate by this margin. The keypad evaluates the
+    # authorization's valid-from moment against the lock's local clock, and
+    # clock skew between the Nuki cloud, the lock and the keypad means a
+    # from-date of exactly "now" is evaluated as "not yet valid" for a window
+    # after creation -- the code shows as active in the app and is listed on
+    # the keypad, but the pad rejects it (six-LED "unknown code" blink,
+    # lockCount stays 0). Opening the window well in the past makes the code
+    # immediately valid on the device regardless of skew, without affecting
+    # expiry (allowedUntilDate is unchanged).
+    FROM_DATE_BACKDATE = timedelta(hours=24)
+
     def _get_time_range(self) -> Tuple[str, str]:
         """Get time range for OTP validity."""
         now = dt_util.utcnow()
+        start_time = now - self.FROM_DATE_BACKDATE
         end_time = now + timedelta(hours=self.config.otp_lifetime_hours)
 
-        start_date = now.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        start_date = start_time.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         end_date = end_time.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
         return start_date, end_date
