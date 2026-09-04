@@ -15,6 +15,15 @@ DEFAULT_OTP_LIFETIME_HOURS = 12
 # maximum authorization duration.
 MIN_OTP_LIFETIME_HOURS = 1
 MAX_OTP_LIFETIME_HOURS = 8760
+# Hours to backdate an OTP's allowedFromDate. The keypad evaluates the
+# authorization's valid-from moment against the lock's local clock, and clock
+# skew between the Nuki cloud, the lock and the keypad means a from-date of
+# exactly "now" is evaluated as "not yet valid" for a window after creation --
+# the code shows as active in the app and is listed on the keypad, but the pad
+# rejects it (six-LED blink, lockCount stays 0). Opening the window in the past
+# makes the code immediately valid on the device regardless of skew, without
+# affecting expiry (allowedUntilDate is unchanged).
+OTP_FROM_DATE_BACKDATE_HOURS = 24
 DEFAULT_TIMEOUT = 30
 MAX_RETRIES = 3
 RETRY_DELAY = 1

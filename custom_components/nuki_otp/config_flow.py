@@ -346,17 +346,17 @@ class NukiOptionsFlow(config_entries.OptionsFlow):
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow.
 
-        Note: do NOT assign ``self.config_entry`` here. Modern Home Assistant
-        (2024.11+) makes ``OptionsFlow.config_entry`` a read-only property that
-        is set automatically from the handler, so assigning it raises
-        ``AttributeError: property 'config_entry' ... has no setter`` and the
-        options flow 500s. The base class already exposes the entry.
+        Do NOT assign ``self.config_entry``: HA 2024.11+ makes it a read-only
+        property on the base class and 2025.12 removed the setter, so assigning
+        it raises AttributeError and the options flow 500s. A private attribute
+        works across all supported versions.
         """
+        self._config_entry = config_entry
 
     def _current(self, key: str, default: Any) -> Any:
         """Return the current value, preferring options over original data."""
-        return self.config_entry.options.get(
-            key, self.config_entry.data.get(key, default)
+        return self._config_entry.options.get(
+            key, self._config_entry.data.get(key, default)
         )
 
     async def async_step_init(
