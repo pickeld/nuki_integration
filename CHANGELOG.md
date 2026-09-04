@@ -3,6 +3,37 @@
 All notable changes to the Nuki OTP Generator integration are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [2.6.0] - 2026-08-30
+
+### Fixed
+- **Time-limited keypad codes now work at the keypad.** OTP codes are minted
+  with `allowedFromDate` set to "now". The keypad evaluates the valid-from
+  moment against the lock's local clock, and clock skew between the Nuki cloud,
+  the lock and the keypad meant a freshly-minted code was treated as "not yet
+  valid": it showed as **Active** in the app and was listed in the keypad's
+  codes, but the keypad rejected it (six-LED blink) and `lockCount` never
+  incremented. `allowedFromDate` is now backdated by
+  `OTP_FROM_DATE_BACKDATE_HOURS` (24h), so codes are immediately valid on the
+  device regardless of skew. Expiry (`allowedUntilDate`) is unchanged.
+  Verified on hardware (Smart Lock Ultra + Keypad 2.0).
+- **Options flow no longer 500s.** `NukiOptionsFlow.__init__` assigned
+  `self.config_entry`, which HA 2024.11+ makes a read-only property (the setter
+  was removed in 2025.12), so opening **Configure** raised
+  `AttributeError: property 'config_entry' ... has no setter`. The entry is now
+  stored under a private attribute, which works across all supported HA
+  versions (2024.7+). This lets the OTP lifetime be changed without removing
+  and re-adding the integration.
+
+### Changed
+- **OTP lifetime ceiling raised from 168 hours (1 week) to 8760 hours
+  (1 year).** The 168-hour cap was an arbitrary `vol.Range` limit in the setup
+  and options schemas with no API basis — the value flows straight into the
+  Nuki Web API `allowedUntilDate`, which accepts durations up to a year. The
+  cap made multi-week stays (e.g. long-term rentals) impossible without an
+  external re-mint workaround. Bounds are now the named constants
+  `MIN_OTP_LIFETIME_HOURS` / `MAX_OTP_LIFETIME_HOURS`. The default (12h) is
+  unchanged.
+
 ## [2.5.2] - 2026-08-11
 
 ### Fixed

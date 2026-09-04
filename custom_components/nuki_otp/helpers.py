@@ -11,6 +11,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import dt as dt_util
 
+from .const import OTP_FROM_DATE_BACKDATE_HOURS
+
 _LOGGER = logging.getLogger(__name__)
 
 # Constants
@@ -262,12 +264,16 @@ class NukiAPIClient:
         code_str = "".join(secrets.choice("123456789") for _ in range(length))
         return int(code_str)
 
+    # Backdate the allowedFromDate by OTP_FROM_DATE_BACKDATE_HOURS (see const.py)
+    # so the keypad accepts freshly-minted codes despite cloud/lock/keypad clock
+    # skew; expiry (allowedUntilDate) is unaffected.
     def _get_time_range(self) -> Tuple[str, str]:
         """Get time range for OTP validity."""
         now = dt_util.utcnow()
+        start_time = now - timedelta(hours=OTP_FROM_DATE_BACKDATE_HOURS)
         end_time = now + timedelta(hours=self.config.otp_lifetime_hours)
 
-        start_date = now.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        start_date = start_time.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         end_date = end_time.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
         return start_date, end_date

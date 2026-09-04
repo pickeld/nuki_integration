@@ -24,7 +24,7 @@
                 "data_description": {
                     "nuki_name": "The smart lock to manage, discovered from your Nuki account.",
                     "otp_username": "Name given to the temporary keypad code created by this integration. Helps you recognise it in the Nuki app.",
-                    "otp_lifetime_hours": "How long each generated OTP code stays valid, in hours (1–168). After this it expires and is removed."
+                    "otp_lifetime_hours": "How long each generated OTP code stays valid, in hours (1–8760). After this it expires and is removed."
                 }
             },
             "reauth_confirm": {
@@ -62,7 +62,7 @@
                 },
                 "data_description": {
                     "otp_username": "Name given to the temporary keypad code created by this integration. Helps you recognise it in the Nuki app.",
-                    "otp_lifetime_hours": "How long each generated OTP code stays valid, in hours (1–168). After this it expires and is removed."
+                    "otp_lifetime_hours": "How long each generated OTP code stays valid, in hours (1–8760). After this it expires and is removed."
                 }
             }
         }
